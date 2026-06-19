@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aws-finops-agent"
+version = "0.1.0"
+description = "AI FinOps agent for AWS cost analysis & optimization (Strands SDK + Amazon Bedrock)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+  "boto3>=1.34",
+  "botocore>=1.34",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Strands agent runtime (not needed for Phase-0 preflight)
+agent = [
+  "strands-agents>=0.1",
+  "strands-agents-tools>=0.1",
+]
+api = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+dashboard = ["streamlit>=1.33", "pandas>=2.0", "altair>=5.0"]
+dev = ["pytest>=8.0", "moto>=5.0", "ruff>=0.4"]
+
+[project.scripts]
+finops = "finops_core.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["finops_core*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

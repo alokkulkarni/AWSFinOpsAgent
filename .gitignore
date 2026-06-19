@@ -1,0 +1,36 @@
+# --- Secrets: NEVER commit ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+.aws/
+**/credentials
+**/.aws/credentials
+secrets/
+*.secret
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- Tooling / OS ---
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# --- Local artifacts ---
+audit/
+reports/
+*.parquet
+athena-output/

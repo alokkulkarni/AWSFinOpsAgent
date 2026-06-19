@@ -1,0 +1,16 @@
+# Hardened sandbox overlay. Apply on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.sandbox.yml run --rm preflight
+# Read-only root FS, dropped Linux caps, no privilege escalation, resource limits.
+services:
+  preflight:
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/finops/.cache
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    # Credentials remain read-only (mounted by the base file). No inbound ports.
