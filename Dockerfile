@@ -8,11 +8,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install package + agent (A2A/MCP) + api extras so this one image runs every service:
-# preflight, cost-tools MCP server, and the A2A agent/orchestrator servers.
+# Install package + agent (A2A/MCP) + api + dashboard extras so this one image runs every
+# service: preflight, cost-tools MCP server, A2A agent/orchestrator servers, and the dashboard.
 COPY pyproject.toml README.md ./
 COPY finops_core ./finops_core
-RUN pip install --no-cache-dir -e ".[agent,api]"
+COPY apps ./apps
+RUN pip install --no-cache-dir -e ".[agent,api,dashboard]"
 
 # Config is also bind-mounted read-only at runtime via compose.
 COPY config ./config

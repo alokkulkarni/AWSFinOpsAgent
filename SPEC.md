@@ -327,7 +327,7 @@ controls **which tools are registered** and **which IAM policy** is expected.
 
 ## 10. Interfaces
 
-### 10.1 Streamlit dashboard
+### 10.1 Streamlit dashboard  ✅ *Phase 2 — KPIs + cost-per-service + drill-down + trend + chat built & smoke-tested; Optimization/Anomaly tabs pending their phases.*
 - **Overview:** KPI row (MTD, forecast EOM, Δ MoM, open anomalies, potential savings $).
 - **Cost Explorer tab:** ranked **cost-per-service** table (sparkline + Δ%), period &
   granularity controls, account selector (org), tag/cost-category slicers.
@@ -536,7 +536,7 @@ AWSFinOpsAgent/
 | **0. Scaffold** | Repo, config, AWS session layer, model router, Bedrock preflight | `get_caller_identity` works in Docker w/ all 3 cred modes | ✅ **Done** (preflight PASS local + Docker + sandbox) |
 | **1. Cost core** | Cost-analysis tools + Cost-Analysis agent + CLI smoke | Accurate cost-per-service + drill-down vs console | ✅ **Done** — see Phase-1 evidence below |
 | **1d. Distribute (cost slice)** | cost-tools MCP server + cost-agent A2A + orchestrator A2A + compose | Distributed stack answers in Docker + sandbox, numbers exact | ✅ **Done** (bundled into Phase 1) |
-| **2. Dashboard MVP** | Streamlit overview + cost table + **double-click drill-down** + chat | Journey A end-to-end | ☐ |
+| **2. Dashboard MVP** | Streamlit overview + cost table + **double-click drill-down** + chat | Journey A end-to-end | ✅ **Done** — deterministic data layer; drill-down verified headlessly (AppTest) + dockerized |
 | **3. Optimization** | Optimization tools/agent, ranked dedup findings | Journey B (advisory) |
 | **4. Anomaly/forecast/budgets** | Tools + tab | Anomalies & budgets visible |
 | **5. API** | FastAPI over same core | All endpoints + OpenAPI |
