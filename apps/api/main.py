@@ -11,7 +11,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Optional
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from finops_core.anomaly.engine import AnomalyEngine
@@ -66,6 +66,22 @@ class QueryRequest(BaseModel):
 class DigestRequest(BaseModel):
     format: str = "md"
     narrative: bool = False
+
+
+class FixRequest(BaseModel):
+    finding: dict
+    format: str = "cli"
+
+
+class PreviewRequest(BaseModel):
+    action_id: str
+    params: dict = {}
+
+
+class ApplyRequest(BaseModel):
+    action_id: str
+    token: str
+    params: dict = {}
 
 
 # ---- meta ------------------------------------------------------------------
@@ -149,3 +165,38 @@ def query(req: QueryRequest, cfg: Config = Depends(get_config)):
         return {"intent": intent, "answer": answer}
     except ImportError:
         return {"error": "agent extra not installed (pip install -e '.[agent]')"}
+
+
+# ---- remediation (mode-gated) ---------------------------------------------
+@app.post("/fix")
+def fix(req: FixRequest, cfg: Config = Depends(get_config)):
+    if cfg.mode == "advisory":
+        raise HTTPException(403, "artifact generation needs FINOPS_MODE=artifacts or guarded_write")
+    from finops_core.remediation.artifacts import generate_artifact
+    return generate_artifact(req.finding, req.format).to_dict()
+
+
+@app.get("/actions")
+def actions(cfg: Config = Depends(get_config)):
+    from finops_core.remediation.actions import RemediationEngine
+    return {"mode": cfg.mode, "actions": [a.to_dict() for a in RemediationEngine(cfg).list_actions()]}
+
+
+@app.post("/actions/preview")
+def actions_preview(req: PreviewRequest, cfg: Config = Depends(get_config)):
+    from finops_core.remediation.actions import ModeError, RemediationEngine
+    try:
+        return RemediationEngine(cfg, get_session()).preview(req.action_id, req.params).to_dict()
+    except ModeError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/actions/apply")
+def actions_apply(req: ApplyRequest, cfg: Config = Depends(get_config)):
+    from finops_core.remediation.actions import ModeError, RemediationEngine
+    try:
+        return RemediationEngine(cfg, get_session()).apply(req.action_id, req.token, req.params).to_dict()
+    except ModeError as e:
+        raise HTTPException(403, str(e))

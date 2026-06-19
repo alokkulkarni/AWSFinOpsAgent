@@ -272,7 +272,7 @@ All tools are thin, typed, paginated boto3 wrappers returning **normalized datac
 | `list_accounts()` | `organizations:ListAccounts` (name↔id map; cached) |
 | `assume_account_role(account_id)` | `sts:AssumeRole` into `FinOpsReadOnly` |
 
-### 7.6 Remediation (mode-gated; see §9)
+### 7.6 Remediation (mode-gated; see §9)  ✅ *Phase 8 — `finops_core/remediation/`: artifacts.py (CLI/Terraform generators), actions.py (allowlist + preview/apply), audit.py (append-only log + single-use token store). Surfaces: `finops fix`, `finops action {list,preview,apply}`, `/fix`, `/actions/*`.*
 | Tool | Behavior |
 |---|---|
 | `generate_remediation_artifact(finding_id, format)` | Emits Terraform/CloudFormation/CLI for a finding. **No execution.** (`artifacts` + `guarded_write` modes) |
@@ -307,7 +307,7 @@ audit-log entry. No IAM/networking/data-deletion actions in v1.
 
 ---
 
-## 9. Action Posture Modes
+## 9. Action Posture Modes  ✅ *Phase 8 — implemented & enforced in CLI + API.*
 
 Selected by `FINOPS_MODE` (env/config) and switchable in the dashboard sidebar. Mode
 controls **which tools are registered** and **which IAM policy** is expected.
@@ -547,7 +547,7 @@ AWSFinOpsAgent/
 | **5. API** | FastAPI over same core | All endpoints + OpenAPI | ✅ **Done** — deterministic /cost /optimize /anomalies /budgets + intent-routed /query; OpenAPI /docs; dockerized; verified live |
 | **6. CUR/Athena** | NL→SQL, query, **provision** tool | Resource-level drill-down when CUR on |
 | **7. Workflow digest** | Scheduled report + delivery | Markdown/HTML/JSON digest | ✅ **Done** — parallel-DAG gather → md/html/json render (deterministic) + optional LLM narrative; file/Slack/SNS/SES delivery; `finops digest`, POST /report/digest, one-shot compose service |
-| **8. Remediation modes** | `artifacts` + `guarded_write` + audit | Confirmed action w/ audit entry |
+| **8. Remediation modes** | `artifacts` + `guarded_write` + audit | Confirmed action w/ audit entry | ✅ **Done** — artifact generator + allowlisted guarded actions (preview→single-use token→apply→audit); mode-gated CLI (`fix`, `action`) + API (`/fix`, `/actions/*`); verified guard + bad-token rejection (no real mutation; apply path mock-tested) |
 | **9. Org/multi-account** | assume-role fan-out, per-account split | Per-linked-account costs |
 | **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests |
 

@@ -109,6 +109,30 @@ def _build_parser() -> argparse.ArgumentParser:
     rt.add_argument("question")
     rt.add_argument("--config", default=None)
 
+    # fix — generate a remediation artifact (artifacts / guarded_write mode)
+    fx = sub.add_parser("fix", help="generate a fix script/IaC for a finding (no execution)")
+    fx.add_argument("--config", default=None)
+    fx.add_argument("--finding-json", default=None, help="a finding as JSON")
+    fx.add_argument("--action", default=None)
+    fx.add_argument("--resource-id", default=None)
+    fx.add_argument("--region", default=None)
+    fx.add_argument("--title", default="remediation")
+    fx.add_argument("--format", default="cli", choices=["cli", "terraform"])
+
+    # action — guarded-write actions (guarded_write mode only)
+    act = sub.add_parser("action", help="guarded-write actions: list / preview / apply")
+    a2 = act.add_subparsers(dest="op")
+    a2.add_parser("list").add_argument("--config", default=None)
+    pv = a2.add_parser("preview")
+    pv.add_argument("action_id")
+    pv.add_argument("--config", default=None)
+    pv.add_argument("--param", action="append", default=[], metavar="K=V")
+    ap = a2.add_parser("apply")
+    ap.add_argument("action_id")
+    ap.add_argument("--token", required=True)
+    ap.add_argument("--config", default=None)
+    ap.add_argument("--param", action="append", default=[], metavar="K=V")
+
     # serve — run a distributed service (used as the container command)
     srv = sub.add_parser("serve", help="run a distributed service (MCP tool / A2A agent server)")
     srv.add_argument("service", choices=["cost-tools", "cost-agent", "orchestrator",
@@ -270,6 +294,71 @@ def _run_anomaly(args) -> int:
     return 0
 
 
+def _parse_kv(pairs: list) -> dict:
+    out = {}
+    for raw in pairs:
+        if "=" in raw:
+            k, v = raw.split("=", 1)
+            out[k.strip()] = v.strip()
+    return out
+
+
+def _run_fix(args) -> int:
+    from finops_core.config import Config
+    from finops_core.remediation.artifacts import generate_artifact
+
+    cfg = Config.load(args.config)
+    if cfg.mode == "advisory":
+        print("[error] artifact generation needs FINOPS_MODE=artifacts or guarded_write "
+              f"(current: {cfg.mode})")
+        return 2
+    if args.finding_json:
+        finding = json.loads(args.finding_json)
+    else:
+        finding = {"action": args.action, "resource_id": args.resource_id,
+                   "region": args.region, "title": args.title}
+    art = generate_artifact(finding, args.format)
+    print(f"# {art.filename} ({art.format}) — {art.description}\n{art.content}")
+    return 0
+
+
+def _run_action(args) -> int:
+    from finops_core.config import Config
+    from finops_core.remediation.actions import ModeError, RemediationEngine
+
+    cfg = Config.load(getattr(args, "config", None))
+    eng = RemediationEngine(cfg)
+    op = getattr(args, "op", None)
+    if not op:
+        print("usage: finops action {list,preview,apply}")
+        return 1
+    if op == "list":
+        for a in eng.list_actions():
+            print(f"  {a.action_id:30s} [{a.risk:6s}] {a.title}")
+        note = "" if cfg.mode == "guarded_write" else "  (set FINOPS_MODE=guarded_write to preview/apply)"
+        print(f"\nmode: {cfg.mode}{note}")
+        return 0
+    try:
+        if op == "preview":
+            spec = eng.preview(args.action_id, _parse_kv(args.param))
+            print(f"action: {spec.action_id}  [risk={spec.risk}]\nwould: {spec.preview}\n")
+            print("To apply (single-use token):")
+            print(f"  finops action apply {spec.action_id} --token {spec.confirmation_token}")
+            return 0
+        if op == "apply":
+            res = eng.apply(args.action_id, args.token, _parse_kv(args.param) or None)
+            print(f"[{res.status}] {res.detail}"
+                  + (f"  (audit {res.audit_id})" if res.audit_id else ""))
+            return 0 if res.status == "applied" else 2
+    except ModeError as e:
+        print(f"[error] {e}")
+        return 2
+    except Exception as e:
+        print(f"[error] {type(e).__name__}: {e}")
+        return 2
+    return 1
+
+
 def _result_text(result) -> str:
     """Extract plain text from a Strands AgentResult / A2A result."""
     msg = getattr(result, "message", None)
@@ -368,6 +457,10 @@ def main(argv: Optional[list] = None) -> int:
             return 2
         print(f"[routed to: {intent}]\n{answer}")
         return 0
+    if cmd == "fix":
+        return _run_fix(args)
+    if cmd == "action":
+        return _run_action(args)
     if cmd == "optimize":
         return _run_optimize(args)
     if cmd == "anomaly":
