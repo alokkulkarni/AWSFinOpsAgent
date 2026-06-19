@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from finops_core.aws.org import OrgResolver
 from finops_core.config import Config
 from finops_core.cost.explorer import CostExplorer
 
@@ -13,6 +14,7 @@ def build_cost_tools(session=None, cfg: Optional[Config] = None, ce: Optional[Co
     from strands import tool  # lazy import: only needed when wiring the agent
 
     ce = ce or CostExplorer(session, cfg)
+    org = OrgResolver(session, cfg)
 
     @tool
     def get_cost_summary(period: str = "mtd", granularity: str = "MONTHLY",
@@ -34,9 +36,19 @@ def build_cost_tools(session=None, cfg: Optional[Config] = None, ce: Optional[Co
     @tool
     def get_cost_by_account(period: str = "mtd", top_n: int = 20,
                             metric: str = "UnblendedCost") -> dict:
-        """Cost per linked account (AWS Organizations / consolidated billing). Run from the
-        management (payer) account; otherwise returns the single account."""
-        return ce.cost_by_account(period=period, metric=metric, top_n=top_n).to_dict()
+        """Cost per linked account (AWS Organizations / consolidated billing), with account
+        names. Run from the management (payer) account; otherwise returns the single account."""
+        b = ce.cost_by_account(period=period, metric=metric, top_n=top_n).to_dict()
+        try:
+            return org.enrich_breakdown(b)
+        except Exception:
+            return b
+
+    @tool
+    def list_accounts() -> dict:
+        """List the AWS accounts in scope (id -> name). Uses Organizations when run from the
+        management account; otherwise returns the single current account."""
+        return org.list_accounts()
 
     @tool
     def drill_down(group_by: str, filters: Optional[dict] = None, period: str = "mtd",
@@ -73,5 +85,5 @@ def build_cost_tools(session=None, cfg: Optional[Config] = None, ce: Optional[Co
 
     return [
         get_cost_summary, get_cost_by_service, get_cost_by_account, drill_down,
-        get_cost_trend, get_cost_forecast, list_dimension_values,
+        get_cost_trend, get_cost_forecast, list_dimension_values, list_accounts,
     ]

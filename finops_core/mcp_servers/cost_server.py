@@ -12,12 +12,15 @@ import os
 
 from mcp.server import FastMCP
 
+from finops_core.aws.org import OrgResolver
 from finops_core.aws.session import build_session
 from finops_core.config import Config
 from finops_core.cost.explorer import CostExplorer
 
 _cfg = Config.load()
-_ce = CostExplorer(build_session(_cfg), _cfg)
+_session = build_session(_cfg)
+_ce = CostExplorer(_session, _cfg)
+_org = OrgResolver(_session, _cfg)
 
 mcp = FastMCP(
     "finops-cost-tools",
@@ -39,9 +42,18 @@ def get_cost_by_service(period: str = "mtd", top_n: int = 10, granularity: str =
                                metric=metric, top_n=top_n).to_dict()
 
 
-@mcp.tool(description="Cost per linked account (AWS Organizations / consolidated billing).")
+@mcp.tool(description="Cost per linked account (AWS Organizations / consolidated billing), with names.")
 def get_cost_by_account(period: str = "mtd", top_n: int = 20, metric: str = "UnblendedCost") -> dict:
-    return _ce.cost_by_account(period=period, metric=metric, top_n=top_n).to_dict()
+    b = _ce.cost_by_account(period=period, metric=metric, top_n=top_n).to_dict()
+    try:
+        return _org.enrich_breakdown(b)
+    except Exception:
+        return b
+
+
+@mcp.tool(description="List AWS accounts in scope (id -> name); Organizations when run from the payer.")
+def list_accounts() -> dict:
+    return _org.list_accounts()
 
 
 @mcp.tool(description=(
