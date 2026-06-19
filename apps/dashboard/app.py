@@ -140,6 +140,38 @@ try:
 except Exception as e:
     st.caption(f"(trend unavailable: {e})")
 
+# ---- optimization (advisory; deterministic) --------------------------------
+st.subheader("Optimization — potential savings (advisory)")
+
+
+@st.cache_data(show_spinner="Scanning for savings…", ttl=900)
+def optimization():
+    from finops_core.aws.session import build_session
+    from finops_core.optimize.engine import Optimizer
+    c = Config.load()
+    return Optimizer(build_session(c), c).all_recommendations().to_dict()
+
+
+try:
+    rep = optimization()
+    ocur = rep.get("currency", "USD")
+    st.metric("Potential monthly savings", money(rep["total_monthly_savings"], ocur))
+    if rep["recommendations"]:
+        odf = pd.DataFrame([{
+            "savings/mo": r["monthly_savings"], "source": r["source"], "risk": r["risk"],
+            "finding": r["title"], "resource": r.get("resource_id") or "",
+        } for r in rep["recommendations"]])
+        st.dataframe(odf.style.format({"savings/mo": lambda v: money(v, ocur)}),
+                     width="stretch", hide_index=True)
+    else:
+        st.info("No actionable recommendations from enrolled sources right now.")
+    if rep["notes"]:
+        with st.expander("Coverage notes (unavailable / not-enrolled sources)"):
+            for n in rep["notes"]:
+                st.write(f"• {n}")
+except Exception as e:
+    st.caption(f"(optimization unavailable: {e})")
+
 # ---- chat (narrative only; numbers above are authoritative) ---------------
 st.subheader("Ask the FinOps agent")
 st.caption("The agent explains and explores; the tables above are the source of truth for figures.")
