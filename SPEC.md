@@ -561,11 +561,13 @@ AWSFinOpsAgent/
   numbers — in normal Docker **and** the hardened sandbox overlay.
 - **Tests**: 14 unit/accuracy tests pass (date presets, CE normalization via botocore Stubber,
   by-service==summary invariant).
-- **Number-relay** (was a known gap): mitigated — (1) all user-facing numbers in the
-  **dashboard/CLI come from the deterministic tool layer**, never an LLM; (2) every agent model
-  now runs at **temperature 0** (`ModelRouter`, `config/models.yaml`); (3) orchestrator prompt
-  quotes specialists verbatim. Remaining hard guarantee for *chat* (a structured tool-result
-  pass-through that bypasses orchestrator re-rendering) is deferred to the Phase 5 API.
+- **Number-relay & routing** (was a known gap): resolved for the product path —
+  (1) all user-facing numbers in the **dashboard/CLI come from the deterministic tool layer**,
+  never an LLM; (2) every agent model runs at **temperature 0**; (3) a deterministic
+  **`IntentRouter`** (`finops route`, dashboard chat) classifies cost/optimize/anomaly by rules
+  and forwards to one specialist — **no orchestrator-LLM routing guesswork** (this fixed the
+  budget-question deflection). The LLM-orchestrator A2A service remains for emergent multi-agent
+  routing, but is no longer on the critical path.
 
 ---
 
