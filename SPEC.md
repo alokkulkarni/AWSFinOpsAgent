@@ -401,6 +401,11 @@ secrets in images/logs. **Verified**: full stack runs and answers under the hard
 
 ## 13. IAM Permissions
 
+> ✅ **Delivered**: `iam/finops-readonly-policy.json` (advisory/artifacts) and
+> `iam/finops-guarded-write-policy.json` (guarded_write only) are committed, plus
+> `scripts/setup_finops_iam.sh` + `docs/IAM.md` to create a dedicated read-only `finops`
+> profile and stop using root. Preflight warns on root credentials.
+
 ### 13.1 Read-only (`advisory` / `artifacts`) — managed-policy baseline + explicit allows
 - AWS managed **`Billing` (read)**, **`AWSBilling ReadOnlyAccess`**-style, plus explicit:
   `ce:Get*`, `ce:List*`, `ce:Describe*`, `cost-optimization-hub:ListRecommendations`/`Get*`/`ListEnrollmentStatuses`,
@@ -556,9 +561,11 @@ AWSFinOpsAgent/
   numbers — in normal Docker **and** the hardened sandbox overlay.
 - **Tests**: 14 unit/accuracy tests pass (date presets, CE normalization via botocore Stubber,
   by-service==summary invariant).
-- **Known gap** → Phase 2: the orchestrator LLM can paraphrase a sub-agent's per-service figures;
-  prompt hardened to quote verbatim, but the durable fix is a deterministic pass-through of
-  structured tool results (don't let the orchestrator re-render numbers).
+- **Number-relay** (was a known gap): mitigated — (1) all user-facing numbers in the
+  **dashboard/CLI come from the deterministic tool layer**, never an LLM; (2) every agent model
+  now runs at **temperature 0** (`ModelRouter`, `config/models.yaml`); (3) orchestrator prompt
+  quotes specialists verbatim. Remaining hard guarantee for *chat* (a structured tool-result
+  pass-through that bypasses orchestrator re-rendering) is deferred to the Phase 5 API.
 
 ---
 

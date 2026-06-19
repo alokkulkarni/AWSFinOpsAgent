@@ -1,0 +1,95 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CostExplorerBillingBudgetsRead",
+      "Effect": "Allow",
+      "Action": [
+        "ce:Get*",
+        "ce:List*",
+        "ce:Describe*",
+        "cur:DescribeReportDefinitions",
+        "bcm-data-exports:GetExport",
+        "bcm-data-exports:ListExports",
+        "bcm-data-exports:GetTable",
+        "bcm-data-exports:ListTables",
+        "budgets:ViewBudget",
+        "budgets:Describe*",
+        "freetier:GetFreeTierUsage",
+        "pricing:GetProducts",
+        "pricing:DescribeServices",
+        "pricing:ListPriceLists",
+        "pricing:GetPriceListFileUrl"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OptimizationRead",
+      "Effect": "Allow",
+      "Action": [
+        "compute-optimizer:Get*",
+        "compute-optimizer:DescribeRecommendationExportJobs",
+        "cost-optimization-hub:ListRecommendations",
+        "cost-optimization-hub:GetRecommendation",
+        "cost-optimization-hub:ListEnrollmentStatuses",
+        "cost-optimization-hub:GetPreferences",
+        "support:DescribeTrustedAdvisorChecks",
+        "support:DescribeTrustedAdvisorCheckResult",
+        "support:DescribeTrustedAdvisorCheckSummaries",
+        "trustedadvisor:Describe*",
+        "trustedadvisor:List*",
+        "trustedadvisor:Get*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OrgAndIdentityRead",
+      "Effect": "Allow",
+      "Action": [
+        "organizations:ListAccounts",
+        "organizations:DescribeOrganization",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CurAthenaGlueRead",
+      "Effect": "Allow",
+      "Action": [
+        "athena:StartQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:StopQueryExecution",
+        "athena:ListWorkGroups",
+        "athena:GetWorkGroup",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:GetDatabase",
+        "glue:GetDatabases",
+        "glue:GetPartitions"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CurAndAthenaOutputS3Read",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockInvoke",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+        "bedrock:ListFoundationModels",
+        "bedrock:ListInferenceProfiles"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

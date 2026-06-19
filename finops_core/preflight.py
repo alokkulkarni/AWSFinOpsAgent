@@ -30,6 +30,9 @@ def run_preflight(config_path: Optional[Path] = None) -> int:
         ident = get_caller_identity(session)
         print(f"[ok]  account : {redact_account(ident['account'], redact)}")
         print(f"[ok]  arn     : {redact_arn(ident['arn'], redact)}")
+        if ident["arn"].rstrip("/").endswith(":root"):
+            print("[warn] running as ROOT credentials. Create a least-privilege profile:")
+            print("       ./scripts/setup_finops_iam.sh   (see docs/IAM.md)")
     except Exception as e:
         print(f"[FAIL] could not resolve AWS identity: {e}")
         print("       -> check credentials (profile/env/assume_role) and region in .env / config.")

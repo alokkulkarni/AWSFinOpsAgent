@@ -1,0 +1,54 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BudgetsAndAnomalyMonitors",
+      "Effect": "Allow",
+      "Action": [
+        "budgets:CreateBudget",
+        "budgets:ModifyBudget",
+        "ce:CreateAnomalyMonitor",
+        "ce:CreateAnomalySubscription",
+        "ce:UpdateAnomalyMonitor"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OptimizationEnrollment",
+      "Effect": "Allow",
+      "Action": [
+        "compute-optimizer:UpdateEnrollmentStatus",
+        "cost-optimization-hub:UpdateEnrollmentStatus"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CleanupIdleResourcesTagScoped",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DeleteVolume",
+        "ec2:ReleaseAddress",
+        "ec2:DeleteSnapshot",
+        "ec2:StopInstances"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/finops-managed": "true"
+        }
+      }
+    },
+    {
+      "Sid": "CurDataExportProvisioning",
+      "Effect": "Allow",
+      "Action": [
+        "bcm-data-exports:CreateExport",
+        "athena:CreateWorkGroup",
+        "s3:CreateBucket",
+        "s3:PutBucketPolicy",
+        "s3:PutObject"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

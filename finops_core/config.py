@@ -61,6 +61,7 @@ class LlmConfig:
     region: str = "us-east-1"
     roles: dict = field(default_factory=dict)
     fallback: list = field(default_factory=list)
+    temperature: float = 0.0         # 0 = most deterministic (exact-number relay)
 
 
 @dataclass
@@ -114,6 +115,7 @@ class Config:
             region=llm.get("region", cfg.llm.region),
             roles=merged_roles,
             fallback=list(llm.get("fallback") or models.get("fallback") or []),
+            temperature=float(llm.get("temperature", models.get("temperature", cfg.llm.temperature))),
         )
 
         g = data.get("guardrails") or {}
@@ -148,6 +150,8 @@ class Config:
 
         self.llm.provider = os.getenv("FINOPS_LLM_PROVIDER", self.llm.provider)
         self.llm.region = os.getenv("FINOPS_LLM_REGION", self.llm.region)
+        if os.getenv("FINOPS_LLM_TEMPERATURE"):
+            self.llm.temperature = float(os.environ["FINOPS_LLM_TEMPERATURE"])
         for role in ("orchestrator", "cost", "optimization", "sql", "digest"):
             override = os.getenv(f"FINOPS_MODEL_{role.upper()}")
             if override:

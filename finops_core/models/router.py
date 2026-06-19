@@ -37,12 +37,20 @@ class ModelRouter:
         return rid
 
     def for_role(self, role: str):
-        """Return a Strands model object for `role` (lazy import of strands)."""
+        """Return a Strands model object for `role` (lazy import of strands).
+
+        Temperature defaults to 0 so the agents relay tool figures deterministically.
+        """
+        temperature = self.cfg.llm.temperature
         if self.cfg.llm.provider == "anthropic":
             from strands.models.anthropic import AnthropicModel  # type: ignore
-            return AnthropicModel(model_id=self.model_id(role))
+            return AnthropicModel(model_id=self.model_id(role), temperature=temperature)
         from strands.models import BedrockModel  # type: ignore
-        return BedrockModel(model_id=self.model_id(role), region_name=self.cfg.llm.region)
+        return BedrockModel(
+            model_id=self.model_id(role),
+            region_name=self.cfg.llm.region,
+            temperature=temperature,
+        )
 
     def preflight(self) -> ModelPreflight:
         notes: list[str] = []
