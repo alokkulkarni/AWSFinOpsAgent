@@ -23,13 +23,18 @@ def main() -> None:
     from finops_core.agents.prompts import ORCHESTRATOR_PROMPT
 
     cfg = Config.load()
-    cost_agent_url = os.getenv("FINOPS_COST_AGENT_URL", "http://127.0.0.1:9001")
     host = os.getenv("FINOPS_A2A_HOST", "127.0.0.1")
     port = int(os.getenv("FINOPS_A2A_PORT", "9000"))
     public = os.getenv("FINOPS_A2A_PUBLIC_URL")
 
+    # Known specialist sub-agents (A2A). Add more as later phases land.
+    known = [os.getenv("FINOPS_COST_AGENT_URL", "http://127.0.0.1:9001")]
+    optimize_url = os.getenv("FINOPS_OPTIMIZE_AGENT_URL")
+    if optimize_url:
+        known.append(optimize_url)
+
     # A2A client tools: discovery + delegation to known specialist agents.
-    provider = A2AClientToolProvider(known_agent_urls=[cost_agent_url])
+    provider = A2AClientToolProvider(known_agent_urls=known)
     agent = Agent(
         model=ModelRouter(cfg).for_role("orchestrator"),
         name="FinOps Orchestrator",
@@ -43,7 +48,7 @@ def main() -> None:
         agent=agent, host=host, port=port,
         http_url=public, serve_at_root=bool(public),
     )
-    print(f"[orchestrator] A2A on {host}:{port} (public={public}) -> cost-agent {cost_agent_url}")
+    print(f"[orchestrator] A2A on {host}:{port} (public={public}) -> sub-agents {known}")
     server.serve()
 
 

@@ -68,6 +68,15 @@ def _build_parser() -> argparse.ArgumentParser:
     dv.add_argument("--period", default="mtd")
     dv.add_argument("--json", action="store_true")
 
+    # optimize group
+    opt = sub.add_parser("optimize", help="cost-savings recommendations")
+    osub = opt.add_subparsers(dest="view")
+    for name in ("summary", "rightsizing", "compute-optimizer", "savings-plans",
+                 "reservations", "hub", "trusted-advisor"):
+        p = osub.add_parser(name)
+        p.add_argument("--config", default=None)
+        p.add_argument("--json", action="store_true")
+
     # ask (agent) — local in-process, or a remote A2A endpoint (distributed)
     ask = sub.add_parser("ask", help="ask the Cost-Analysis agent (local) or a remote A2A agent")
     ask.add_argument("question")
@@ -77,7 +86,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # serve — run a distributed service (used as the container command)
     srv = sub.add_parser("serve", help="run a distributed service (MCP tool / A2A agent server)")
-    srv.add_argument("service", choices=["cost-tools", "cost-agent", "orchestrator"])
+    srv.add_argument("service", choices=["cost-tools", "cost-agent", "orchestrator",
+                                         "optimize-tools", "optimize-agent"])
 
     return parser
 
@@ -162,6 +172,43 @@ def _run_cost(args) -> int:
     return 0
 
 
+def _run_optimize(args) -> int:
+    from dataclasses import asdict
+
+    from finops_core import format as fmt
+    from finops_core.aws.session import build_session
+    from finops_core.config import Config
+    from finops_core.optimize.engine import Optimizer
+
+    if not args.view:
+        print("usage: finops optimize {summary,rightsizing,compute-optimizer,"
+              "savings-plans,reservations,hub,trusted-advisor}")
+        return 1
+    cfg = Config.load(getattr(args, "config", None))
+    try:
+        opt = Optimizer(build_session(cfg), cfg)
+    except Exception as e:
+        print(f"[error] could not create AWS session: {e}")
+        return 2
+
+    if args.view == "summary":
+        report = opt.all_recommendations()
+        print(json.dumps(report.to_dict(), indent=2)) if args.json else fmt.print_optimization(report)
+        return 0
+
+    method = {
+        "rightsizing": opt.rightsizing, "compute-optimizer": opt.compute_optimizer,
+        "savings-plans": opt.savings_plans, "reservations": opt.reservations,
+        "hub": opt.cost_optimization_hub, "trusted-advisor": opt.trusted_advisor_cost,
+    }[args.view]
+    recs, notes = method()
+    if args.json:
+        print(json.dumps({"recommendations": [asdict(r) for r in recs], "notes": notes}, indent=2))
+    else:
+        fmt.print_recommendations(recs, notes)
+    return 0
+
+
 def _result_text(result) -> str:
     """Extract plain text from a Strands AgentResult / A2A result."""
     msg = getattr(result, "message", None)
@@ -233,14 +280,18 @@ def main(argv: Optional[list] = None) -> int:
         return _run_cost(args)
     if cmd == "ask":
         return _run_ask(args)
+    if cmd == "optimize":
+        return _run_optimize(args)
     if cmd == "serve":
-        if args.service == "cost-tools":
-            from finops_core.mcp_servers.cost_server import main as serve_main
-        elif args.service == "cost-agent":
-            from finops_core.services.cost_agent_server import main as serve_main
-        else:
-            from finops_core.services.orchestrator_server import main as serve_main
-        serve_main()
+        servers = {
+            "cost-tools": "finops_core.mcp_servers.cost_server",
+            "cost-agent": "finops_core.services.cost_agent_server",
+            "orchestrator": "finops_core.services.orchestrator_server",
+            "optimize-tools": "finops_core.mcp_servers.optimize_server",
+            "optimize-agent": "finops_core.services.optimize_agent_server",
+        }
+        import importlib
+        importlib.import_module(servers[args.service]).main()
         return 0
 
     parser.print_help()

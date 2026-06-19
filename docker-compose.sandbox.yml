@@ -20,6 +20,10 @@ services:
     <<: *hardened
   cost-agent:
     <<: *hardened
+  optimize-tools:
+    <<: *hardened
+  optimize-agent:
+    <<: *hardened
   orchestrator:
     <<: *hardened
   dashboard:

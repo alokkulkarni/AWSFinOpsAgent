@@ -49,14 +49,40 @@ services:
     expose: ["9001"]
     command: ["serve", "cost-agent"]
 
+  # Optimization TOOL tier — savings recommendations over MCP
+  optimize-tools:
+    <<: *finops-base
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      FINOPS_MCP_HOST: "0.0.0.0"
+      FINOPS_OPTIMIZE_MCP_PORT: "8082"
+    expose: ["8082"]
+    command: ["serve", "optimize-tools"]
+
+  # Optimization SUB-AGENT tier — Optimization specialist over A2A
+  optimize-agent:
+    <<: *finops-base
+    depends_on: [optimize-tools]
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      FINOPS_OPTIMIZE_TOOLS_URL: "http://optimize-tools:8082/mcp"
+      FINOPS_A2A_HOST: "0.0.0.0"
+      FINOPS_A2A_PORT: "9002"
+      FINOPS_A2A_PUBLIC_URL: "http://optimize-agent:9002"
+    expose: ["9002"]
+    command: ["serve", "optimize-agent"]
+
   # ORCHESTRATOR tier — routes to specialists over A2A; single entrypoint
   orchestrator:
     <<: *finops-base
-    depends_on: [cost-agent]
+    depends_on: [cost-agent, optimize-agent]
     environment:
       HOME: /home/finops
       AWS_REGION: ${AWS_REGION:-us-east-1}
       FINOPS_COST_AGENT_URL: "http://cost-agent:9001"
+      FINOPS_OPTIMIZE_AGENT_URL: "http://optimize-agent:9002"
       FINOPS_A2A_HOST: "0.0.0.0"
       FINOPS_A2A_PORT: "9000"
       FINOPS_A2A_PUBLIC_URL: "http://orchestrator:9000"
