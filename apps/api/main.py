@@ -32,10 +32,17 @@ def get_config() -> Config:
     return Config.load()
 
 
+from finops_core.observe import ApiMeter  # noqa: E402
+
+_meter = ApiMeter()
+
+
 @lru_cache
 def get_session():
     from finops_core.aws.session import build_session
-    return build_session(get_config())
+    session = build_session(get_config())
+    _meter.instrument(session)  # count AWS API calls + estimate CE spend
+    return session
 
 
 def get_cost_explorer() -> CostExplorer:
@@ -93,6 +100,12 @@ def healthz():
 @app.get("/config")
 def config(cfg: Config = Depends(get_config)):
     return cfg.redacted()
+
+
+@app.get("/metrics")
+def metrics():
+    """AWS API call counts + estimated Cost Explorer spend incurred by this process."""
+    return _meter.summary()
 
 
 # ---- cost ------------------------------------------------------------------

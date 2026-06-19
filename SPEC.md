@@ -447,7 +447,7 @@ secrets in images/logs. **Verified**: full stack runs and answers under the hard
 
 ---
 
-## 15. Observability & Evaluation
+## 15. Observability & Evaluation  ✅ *Phase 10 — `finops_core/observe.py` ApiMeter (botocore after-call hook → call counts + estimated Cost-Explorer spend, exposed at `GET /metrics`) + structured logging; `finops_core/accuracy.py` reconciles tool figures vs a raw GetCostAndUsage (`finops accuracy`, gated live pytest). Sandbox + IAM delivered in earlier phases.*
 
 - Strands tracing/observability + structured logs: per-request tool calls, latency, token
   usage, **estimated LLM $ and AWS-API $** per session.
@@ -549,7 +549,7 @@ AWSFinOpsAgent/
 | **7. Workflow digest** | Scheduled report + delivery | Markdown/HTML/JSON digest | ✅ **Done** — parallel-DAG gather → md/html/json render (deterministic) + optional LLM narrative; file/Slack/SNS/SES delivery; `finops digest`, POST /report/digest, one-shot compose service |
 | **8. Remediation modes** | `artifacts` + `guarded_write` + audit | Confirmed action w/ audit entry | ✅ **Done** — artifact generator + allowlisted guarded actions (preview→single-use token→apply→audit); mode-gated CLI (`fix`, `action`) + API (`/fix`, `/actions/*`); verified guard + bad-token rejection (no real mutation; apply path mock-tested) |
 | **9. Org/multi-account** | assume-role fan-out, per-account split | Per-linked-account costs | ✅ **Done** — OrgResolver (list accounts, id→name, assume-role); cost-by-account name-enriched (CLI/API/cost-tier); verified live on a real Organizations payer (3 accounts: invincible/Audit/Log Archive) |
-| **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests |
+| **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests | ✅ **Done** — sandbox + IAM landed earlier; this phase adds the AWS-API meter (CE-spend estimate, /metrics), `finops accuracy` reconciliation (live PASS: Δ $2e-06), structured logging |
 
 ### Phase-1 verification evidence (2026-06-19)
 - **Numbers reconcile against live Cost Explorer**: `by-service` total == `summary` total
