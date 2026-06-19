@@ -265,7 +265,7 @@ All tools are thin, typed, paginated boto3 wrappers returning **normalized datac
 | `nl_to_cur_query(question)` | LLM NL→SQL constrained to CUR schema; returns SQL for review before run |
 | `provision_cur_export()` *(guarded write)* | `bcm-data-exports:CreateExport` + S3 bucket + Athena workgroup/db (one-time) |
 
-### 7.5 Pricing & org
+### 7.5 Pricing & org  ✅ *Phase 9 — `finops_core/aws/org.py` OrgResolver: list_accounts (Organizations, paginated, cached), id→name map, assume_account (FinOpsReadOnly fan-out). Wired into cost-by-account (CLI/API/MCP) + `finops org accounts`. Graceful single-account fallback (IAM alias).*
 | Tool | AWS API |
 |---|---|
 | `get_unit_pricing(service, attributes)` | `pricing:GetProducts` |
@@ -548,7 +548,7 @@ AWSFinOpsAgent/
 | **6. CUR/Athena** | NL→SQL, query, **provision** tool | Resource-level drill-down when CUR on |
 | **7. Workflow digest** | Scheduled report + delivery | Markdown/HTML/JSON digest | ✅ **Done** — parallel-DAG gather → md/html/json render (deterministic) + optional LLM narrative; file/Slack/SNS/SES delivery; `finops digest`, POST /report/digest, one-shot compose service |
 | **8. Remediation modes** | `artifacts` + `guarded_write` + audit | Confirmed action w/ audit entry | ✅ **Done** — artifact generator + allowlisted guarded actions (preview→single-use token→apply→audit); mode-gated CLI (`fix`, `action`) + API (`/fix`, `/actions/*`); verified guard + bad-token rejection (no real mutation; apply path mock-tested) |
-| **9. Org/multi-account** | assume-role fan-out, per-account split | Per-linked-account costs |
+| **9. Org/multi-account** | assume-role fan-out, per-account split | Per-linked-account costs | ✅ **Done** — OrgResolver (list accounts, id→name, assume-role); cost-by-account name-enriched (CLI/API/cost-tier); verified live on a real Organizations payer (3 accounts: invincible/Audit/Log Archive) |
 | **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests |
 
 ### Phase-1 verification evidence (2026-06-19)

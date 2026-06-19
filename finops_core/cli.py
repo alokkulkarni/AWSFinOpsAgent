@@ -77,6 +77,13 @@ def _build_parser() -> argparse.ArgumentParser:
         p.add_argument("--config", default=None)
         p.add_argument("--json", action="store_true")
 
+    # org group
+    org = sub.add_parser("org", help="organizations / multi-account")
+    osub2 = org.add_subparsers(dest="view")
+    oa = osub2.add_parser("accounts", help="list linked accounts (id -> name)")
+    oa.add_argument("--config", default=None)
+    oa.add_argument("--json", action="store_true")
+
     # anomaly group
     anom = sub.add_parser("anomaly", help="cost anomalies + budgets")
     asub = anom.add_subparsers(dest="view")
@@ -187,7 +194,8 @@ def _run_cost(args) -> int:
 
     cfg = Config.load(getattr(args, "config", None))
     try:
-        ce = CostExplorer(build_session(cfg), cfg)
+        session = build_session(cfg)
+        ce = CostExplorer(session, cfg)
     except Exception as e:  # session/credential resolution
         print(f"[error] could not create AWS session: {e}")
         return 2
@@ -200,8 +208,16 @@ def _run_cost(args) -> int:
             _emit(ce.cost_by_service(period=args.period, granularity=args.granularity,
                                      metric=args.metric, top_n=args.top), args.json, fmt.print_breakdown)
         elif args.view == "by-account":
-            _emit(ce.cost_by_account(period=args.period, metric=args.metric, top_n=args.top),
-                  args.json, fmt.print_breakdown)
+            b = ce.cost_by_account(period=args.period, metric=args.metric, top_n=args.top)
+            try:  # enrich account ids with names (Organizations), best-effort
+                from finops_core.aws.org import OrgResolver
+                names = OrgResolver(session, cfg).name_map()
+                for g in b.groups:
+                    if names.get(g.key) and names[g.key] != g.key:
+                        g.key = f"{g.key} ({names[g.key]})"
+            except Exception:
+                pass
+            _emit(b, args.json, fmt.print_breakdown)
         elif args.view == "drilldown":
             _emit(ce.drill_down(args.by, _parse_filters(args.filter), period=args.period,
                                 granularity=args.granularity, metric=args.metric, top_n=args.top),
@@ -463,6 +479,21 @@ def main(argv: Optional[list] = None) -> int:
         return _run_action(args)
     if cmd == "optimize":
         return _run_optimize(args)
+    if cmd == "org":
+        from finops_core.aws.org import OrgResolver
+        from finops_core.aws.session import build_session
+        from finops_core.config import Config
+        cfg = Config.load(getattr(args, "config", None))
+        data = OrgResolver(build_session(cfg), cfg).list_accounts()
+        if getattr(args, "json", False):
+            print(json.dumps(data, indent=2))
+        else:
+            print(f"accounts ({'organization' if data['is_org'] else 'single-account'}):")
+            for a in data["accounts"]:
+                print(f"  {a['id']}  {a['name']}  [{a.get('status', '')}]")
+            if data["note"]:
+                print(f"  note: {data['note']}")
+        return 0
     if cmd == "anomaly":
         return _run_anomaly(args)
     if cmd == "serve":

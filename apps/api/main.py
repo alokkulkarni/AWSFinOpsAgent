@@ -112,7 +112,18 @@ def cost_by_service(period: str = "mtd", top_n: int = 10, granularity: str = "MO
 @app.get("/cost/by-account")
 def cost_by_account(period: str = "mtd", top_n: int = 20, metric: str = "UnblendedCost",
                     ce: CostExplorer = Depends(get_cost_explorer)):
-    return ce.cost_by_account(period=period, top_n=top_n, metric=metric).to_dict()
+    b = ce.cost_by_account(period=period, top_n=top_n, metric=metric).to_dict()
+    try:
+        from finops_core.aws.org import OrgResolver
+        return OrgResolver(get_session(), get_config()).enrich_breakdown(b)
+    except Exception:
+        return b
+
+
+@app.get("/accounts")
+def accounts_list():
+    from finops_core.aws.org import OrgResolver
+    return OrgResolver(get_session(), get_config()).list_accounts()
 
 
 @app.post("/cost/drilldown")
