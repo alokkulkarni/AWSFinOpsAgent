@@ -341,7 +341,7 @@ controls **which tools are registered** and **which IAM policy** is expected.
   reasoning + renders any returned tables/charts. Drill context is shared with chat
   ("explain this spike").
 
-### 10.2 FastAPI REST
+### 10.2 FastAPI REST  ✅ *Phase 5 — `apps/api/main.py`: /healthz, /config, /cost/{summary,by-service,by-account,drilldown,trend,forecast}, /optimize/recommendations, /anomalies, /budgets, POST /query (intent-routed). OpenAPI at /docs. Injectable deps (testable). `report/digest` + `actions/*` land in Phases 7/8.*
 | Endpoint | Purpose |
 |---|---|
 | `POST /query` | NL question → orchestrator agent (optionally streamed via SSE) |
@@ -544,7 +544,7 @@ AWSFinOpsAgent/
 | **2. Dashboard MVP** | Streamlit overview + cost table + **double-click drill-down** + chat | Journey A end-to-end | ✅ **Done** — deterministic data layer; drill-down verified headlessly (AppTest) + dockerized |
 | **3. Optimization** | Optimization tools/agent, ranked dedup findings | Journey B (advisory) | ✅ **Done** — distributed optimize tier (MCP + A2A); 2-agent orchestrator routing verified in Docker; graceful degradation when sources not enrolled |
 | **4. Anomaly/forecast/budgets** | Tools + tab | Anomalies & budgets visible | ✅ **Done** — distributed anomaly tier (MCP + A2A); real anomalies + over-budget surfaced in CLI/dashboard; orchestrator routes anomaly Qs (budget-routing can occasionally deflect — see number-relay note) |
-| **5. API** | FastAPI over same core | All endpoints + OpenAPI |
+| **5. API** | FastAPI over same core | All endpoints + OpenAPI | ✅ **Done** — deterministic /cost /optimize /anomalies /budgets + intent-routed /query; OpenAPI /docs; dockerized; verified live |
 | **6. CUR/Athena** | NL→SQL, query, **provision** tool | Resource-level drill-down when CUR on |
 | **7. Workflow digest** | Scheduled report + delivery | Markdown/HTML/JSON digest |
 | **8. Remediation modes** | `artifacts` + `guarded_write` + audit | Confirmed action w/ audit entry |

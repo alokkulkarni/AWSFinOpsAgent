@@ -1,0 +1,139 @@
+"""FastAPI gateway.
+
+Deterministic data endpoints (/cost, /optimize, /anomalies, /budgets) return exact figures
+straight from the tool layer. /query routes the question deterministically (IntentRouter) to a
+specialist. Dependencies are injectable so the endpoints are testable with a stubbed client.
+
+Run: uvicorn apps.api.main:app --port 8000   (or: make api).  Docs at /docs.
+"""
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Optional
+
+from fastapi import Depends, FastAPI
+from pydantic import BaseModel
+
+from finops_core.anomaly.engine import AnomalyEngine
+from finops_core.config import Config
+from finops_core.cost.explorer import CostExplorer
+from finops_core.optimize.engine import Optimizer
+
+app = FastAPI(
+    title="AWS FinOps Agent API",
+    version="0.1.0",
+    summary="Deterministic AWS cost data + intent-routed FinOps chat.",
+)
+
+
+# ---- dependencies (override in tests) -------------------------------------
+@lru_cache
+def get_config() -> Config:
+    return Config.load()
+
+
+@lru_cache
+def get_session():
+    from finops_core.aws.session import build_session
+    return build_session(get_config())
+
+
+def get_cost_explorer() -> CostExplorer:
+    return CostExplorer(get_session(), get_config())
+
+
+def get_optimizer() -> Optimizer:
+    return Optimizer(get_session(), get_config())
+
+
+def get_anomaly() -> AnomalyEngine:
+    return AnomalyEngine(get_session(), get_config())
+
+
+# ---- models ----------------------------------------------------------------
+class DrillRequest(BaseModel):
+    group_by: str = "SERVICE"
+    filters: dict = {}
+    period: str = "mtd"
+    metric: str = "UnblendedCost"
+    top_n: int = 15
+
+
+class QueryRequest(BaseModel):
+    question: str
+
+
+# ---- meta ------------------------------------------------------------------
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/config")
+def config(cfg: Config = Depends(get_config)):
+    return cfg.redacted()
+
+
+# ---- cost ------------------------------------------------------------------
+@app.get("/cost/summary")
+def cost_summary(period: str = "mtd", granularity: str = "MONTHLY",
+                 metric: str = "UnblendedCost", ce: CostExplorer = Depends(get_cost_explorer)):
+    return ce.summary(period=period, granularity=granularity, metric=metric).to_dict()
+
+
+@app.get("/cost/by-service")
+def cost_by_service(period: str = "mtd", top_n: int = 10, granularity: str = "MONTHLY",
+                    metric: str = "UnblendedCost", ce: CostExplorer = Depends(get_cost_explorer)):
+    return ce.cost_by_service(period=period, top_n=top_n, granularity=granularity,
+                              metric=metric).to_dict()
+
+
+@app.get("/cost/by-account")
+def cost_by_account(period: str = "mtd", top_n: int = 20, metric: str = "UnblendedCost",
+                    ce: CostExplorer = Depends(get_cost_explorer)):
+    return ce.cost_by_account(period=period, top_n=top_n, metric=metric).to_dict()
+
+
+@app.post("/cost/drilldown")
+def cost_drilldown(req: DrillRequest, ce: CostExplorer = Depends(get_cost_explorer)):
+    return ce.drill_down(req.group_by, req.filters, period=req.period,
+                         metric=req.metric, top_n=req.top_n).to_dict()
+
+
+@app.get("/cost/trend")
+def cost_trend(months: int = 6, metric: str = "UnblendedCost",
+               ce: CostExplorer = Depends(get_cost_explorer)):
+    return ce.trend(months=months, metric=metric).to_dict()
+
+
+@app.get("/cost/forecast")
+def cost_forecast(horizon: str = "eom", metric: str = "UnblendedCost",
+                  ce: CostExplorer = Depends(get_cost_explorer)):
+    return ce.forecast(horizon=horizon, metric=metric).to_dict()
+
+
+# ---- optimize / anomaly / budgets -----------------------------------------
+@app.get("/optimize/recommendations")
+def optimize_recommendations(opt: Optimizer = Depends(get_optimizer)):
+    return opt.all_recommendations().to_dict()
+
+
+@app.get("/anomalies")
+def anomalies(period: str = "30d", eng: AnomalyEngine = Depends(get_anomaly)):
+    return eng.anomalies(period=period).to_dict()
+
+
+@app.get("/budgets")
+def budgets(eng: AnomalyEngine = Depends(get_anomaly)):
+    return eng.budgets().to_dict()
+
+
+# ---- intent-routed chat ----------------------------------------------------
+@app.post("/query")
+def query(req: QueryRequest, cfg: Config = Depends(get_config)):
+    try:
+        from finops_core.router import IntentRouter
+        intent, answer = IntentRouter(cfg, get_session()).answer(req.question)
+        return {"intent": intent, "answer": answer}
+    except ImportError:
+        return {"error": "agent extra not installed (pip install -e '.[agent]')"}

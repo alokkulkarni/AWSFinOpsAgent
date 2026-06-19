@@ -115,8 +115,23 @@ services:
     ports: ["9000:9000"]
     command: ["serve", "orchestrator"]
 
+  # INTERFACE tier — FastAPI gateway (REST + OpenAPI). Deterministic data endpoints;
+  # /query routes via the IntentRouter to the specialist A2A sub-agents.
+  api:
+    <<: *finops-base
+    depends_on: [cost-agent, optimize-agent, anomaly-agent]
+    entrypoint: ["uvicorn"]
+    command: ["apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      FINOPS_COST_AGENT_URL: "http://cost-agent:9001"
+      FINOPS_OPTIMIZE_AGENT_URL: "http://optimize-agent:9002"
+      FINOPS_ANOMALY_AGENT_URL: "http://anomaly-agent:9003"
+    ports: ["8000:8000"]
+
   # INTERFACE tier — Streamlit dashboard. Numbers are deterministic (in-process Cost
-  # Explorer); the chat panel delegates to the distributed orchestrator over A2A.
+  # Explorer); the chat panel routes via the IntentRouter to the specialist A2A sub-agents.
   dashboard:
     <<: *finops-base
     depends_on: [cost-agent, optimize-agent, anomaly-agent]

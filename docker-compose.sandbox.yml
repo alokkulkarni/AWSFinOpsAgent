@@ -30,6 +30,8 @@ services:
     <<: *hardened
   orchestrator:
     <<: *hardened
+  api:
+    <<: *hardened
   dashboard:
     read_only: true
     tmpfs:
