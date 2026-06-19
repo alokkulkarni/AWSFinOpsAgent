@@ -119,7 +119,7 @@ services:
   # Explorer); the chat panel delegates to the distributed orchestrator over A2A.
   dashboard:
     <<: *finops-base
-    depends_on: [orchestrator]
+    depends_on: [cost-agent, optimize-agent, anomaly-agent]
     entrypoint: ["streamlit"]
     command: ["run", "apps/dashboard/app.py",
               "--server.address=0.0.0.0", "--server.port=8501",
@@ -127,6 +127,9 @@ services:
     environment:
       HOME: /home/finops
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      FINOPS_ORCHESTRATOR_URL: "http://orchestrator:9000"
+      # Chat uses the deterministic IntentRouter → routes to these specialists over A2A
+      FINOPS_COST_AGENT_URL: "http://cost-agent:9001"
+      FINOPS_OPTIMIZE_AGENT_URL: "http://optimize-agent:9002"
+      FINOPS_ANOMALY_AGENT_URL: "http://anomaly-agent:9003"
       STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
     ports: ["8501:8501"]

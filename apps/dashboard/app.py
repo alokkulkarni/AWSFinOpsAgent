@@ -7,8 +7,6 @@ Run: streamlit run apps/dashboard/app.py   (or: make dashboard)
 """
 from __future__ import annotations
 
-import os
-
 import pandas as pd
 import streamlit as st
 
@@ -215,17 +213,14 @@ except Exception as e:
 
 # ---- chat (narrative only; numbers above are authoritative) ---------------
 st.subheader("Ask the FinOps agent")
-st.caption("The agent explains and explores; the tables above are the source of truth for figures.")
+st.caption("Questions are routed deterministically (cost / optimize / anomaly) to the right "
+           "specialist; the tables above remain the source of truth for figures.")
 
 
 @st.cache_resource(show_spinner=False)
-def get_agent():
-    remote = os.getenv("FINOPS_ORCHESTRATOR_URL")
-    if remote:
-        from strands.agent.a2a_agent import A2AAgent
-        return ("remote", A2AAgent(endpoint=remote))
-    from finops_core.agents.cost import build_cost_agent
-    return ("local", build_cost_agent(callback_handler=None))
+def get_router():
+    from finops_core.router import IntentRouter
+    return IntentRouter(Config.load())
 
 
 if "chat" not in st.session_state:
@@ -233,14 +228,13 @@ if "chat" not in st.session_state:
 for m in st.session_state.chat:
     st.chat_message(m["role"]).write(m["content"])
 
-if q := st.chat_input("e.g. why did EC2 jump last week? / break down S3 by usage type"):
+if q := st.chat_input("e.g. why did EC2 jump last week? / find savings / am I over budget?"):
     st.session_state.chat.append({"role": "user", "content": q})
     st.chat_message("user").write(q)
     try:
-        kind, agent = get_agent()
         with st.spinner("Thinking…"):
-            result = agent(q)
-        text = str(result).strip()
+            intent, answer = get_router().answer(q)
+        text = f"*(routed to the **{intent}** specialist)*\n\n{answer}"
     except Exception as e:
         text = f"(agent unavailable: {e})"
     st.session_state.chat.append({"role": "assistant", "content": text})

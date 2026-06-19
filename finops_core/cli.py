@@ -96,6 +96,11 @@ def _build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--remote", default=None,
                      metavar="URL", help="call a remote A2A agent (e.g. http://localhost:9000)")
 
+    # route — deterministic intent routing to a specialist (no orchestrator-LLM guesswork)
+    rt = sub.add_parser("route", help="classify a question and route it to the right specialist")
+    rt.add_argument("question")
+    rt.add_argument("--config", default=None)
+
     # serve — run a distributed service (used as the container command)
     srv = sub.add_parser("serve", help="run a distributed service (MCP tool / A2A agent server)")
     srv.add_argument("service", choices=["cost-tools", "cost-agent", "orchestrator",
@@ -328,6 +333,18 @@ def main(argv: Optional[list] = None) -> int:
         return _run_cost(args)
     if cmd == "ask":
         return _run_ask(args)
+    if cmd == "route":
+        from finops_core.aws.session import build_session
+        from finops_core.config import Config
+        from finops_core.router import IntentRouter
+        cfg = Config.load(args.config)
+        try:
+            intent, answer = IntentRouter(cfg, build_session(cfg)).answer(args.question)
+        except ImportError:
+            print("[error] routing needs Strands: pip install -e '.[agent]'")
+            return 2
+        print(f"[routed to: {intent}]\n{answer}")
+        return 0
     if cmd == "optimize":
         return _run_optimize(args)
     if cmd == "anomaly":
