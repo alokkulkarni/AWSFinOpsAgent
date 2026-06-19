@@ -103,6 +103,12 @@ def _build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--remote", default=None,
                      metavar="URL", help="call a remote A2A agent (e.g. http://localhost:9000)")
 
+    # accuracy — reconcile tool-layer numbers against a raw Cost Explorer query
+    ac = sub.add_parser("accuracy", help="verify tool numbers match raw Cost Explorer (+ API meter)")
+    ac.add_argument("--config", default=None)
+    ac.add_argument("--period", default="3m")
+    ac.add_argument("--json", action="store_true")
+
     # digest — scheduled FinOps report (the Workflow DAG)
     dg = sub.add_parser("digest", help="build the FinOps digest report (spend, anomalies, savings)")
     dg.add_argument("--config", default=None)
@@ -446,6 +452,24 @@ def main(argv: Optional[list] = None) -> int:
         return _run_cost(args)
     if cmd == "ask":
         return _run_ask(args)
+    if cmd == "accuracy":
+        from finops_core.accuracy import reconcile
+        from finops_core.aws.session import build_session
+        from finops_core.config import Config
+        from finops_core.observe import ApiMeter
+        cfg = Config.load(args.config)
+        session = build_session(cfg)
+        meter = ApiMeter().instrument(session)
+        r = reconcile(session, cfg, period=args.period)
+        if args.json:
+            print(json.dumps({**r, "meter": meter.summary()}, indent=2))
+        else:
+            m = meter.summary()
+            print(f"accuracy {'PASS' if r['ok'] else 'FAIL'}: by-service ${r['by_service_total']} "
+                  f"vs raw CE ${r['raw_ce_total']}  (Δ ${r['delta']}, tol ${r['tolerance']})")
+            print(f"AWS API calls: {m['api_calls']} (CE requests {m['ce_requests']} "
+                  f"≈ ${m['estimated_ce_cost_usd']})")
+        return 0 if r["ok"] else 2
     if cmd == "digest":
         from finops_core.aws.session import build_session
         from finops_core.config import Config
