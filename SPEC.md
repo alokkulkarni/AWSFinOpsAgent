@@ -41,6 +41,7 @@ for reasoning (Claude Sonnet by default with model fallback), and exposes both a
 | **Data scope** | **Full** — Cost Explorer, CE rightsizing, Compute Optimizer, Cost Optimization Hub, Savings Plans / RI recs, **CUR via Athena**, Budgets, Cost Anomaly Detection, Trusted Advisor, Pricing, Free Tier. |
 | **Account scope** | **Both** single account *and* AWS Organizations / consolidated billing with **per-linked-account** breakdown. |
 | **Orchestration** | **Hybrid**: Agents-as-Tools hierarchical orchestrator (interactive) **+** a Strands **Workflow** DAG (scheduled digest). |
+| **Distribution** | **Fully distributed, Docker-based**: each sub-agent runs as a Strands **A2A server** container; each tool domain runs as a **FastMCP (MCP Streamable-HTTP) server** container; the orchestrator calls sub-agents via the **A2A client**. One shared `finops_core` library is reused inside every service image. |
 | **Action posture** | **User-selectable mode**: `advisory` (read-only) · `artifacts` (read-only + generate scripts/IaC) · `guarded_write` (allowlisted actions w/ human confirmation). |
 | **CUR / Athena** | Agent can **provision** the Data Export + Athena workgroup + S3 (one-time guarded write); degrades gracefully to Cost Explorer if absent. |
 | **Credentials in Docker** | **All configurable**: mounted `~/.aws` (read-only), env-var keys, or assume-role/STS — selected by config. |
@@ -75,53 +76,50 @@ answers and prioritized actions, without clicking through 12 console screens.
 
 ## 4. High-Level Architecture
 
+**Distributed, Docker-based topology.** Every tier is its own container on a shared
+network. Agents talk to each other over **A2A** (HTTP/JSON-RPC + agent cards); agents
+reach tools over **MCP** (Streamable HTTP). One `finops_core` library is reused inside
+every image (the deterministic engine + Strands wrappers + servers).
+
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                            Interfaces                                       │
-│   Streamlit dashboard  ──┐                       ┌── FastAPI REST           │
-│   (tables, charts,       │                       │   /query /drilldown      │
-│    click-drilldown,      │                       │   /optimize /report ...  │
-│    chat panel)           ▼                       ▼                          │
-└───────────────────┬───────────────────────────────────┬────────────────────┘
-                    │             Agent Core             │
-                    ▼                                     ▼
-        ┌───────────────────────────┐        ┌───────────────────────────┐
-        │  Direct Tool Layer        │        │  FinOps Orchestrator Agent │
-        │  (deterministic boto3     │        │  (Strands; Agents-as-Tools)│
-        │   wrappers — fast path    │◀──────▶│  delegates to specialists  │
-        │   for UI clicks)          │  same  │                            │
-        └─────────────┬─────────────┘ tools  └─────────────┬──────────────┘
-                      │                                     │
-                      │              ┌──────────────────────┼──────────────────────┐
-                      │              ▼            ▼          ▼            ▼          │
-                      │      Cost-Analysis   Optimization  Anomaly/    CUR/Athena   │  Specialist
-                      │      sub-agent       sub-agent     Forecast    sub-agent    │  sub-agents
-                      │                                    sub-agent                │  (each = @tool)
-                      │              └──────────────────────┬──────────────────────┘
-                      ▼                                     ▼
-        ┌──────────────────────────────────────────────────────────────────┐
-        │                AWS Access Layer (boto3 sessions)                   │
-        │   profile / env / assume-role · org account resolver · paginators │
-        │   ret/throttle handling · response cache (TTL) · cost guardrails   │
-        └──────────────────────────────────────────────────────────────────┘
-                      │
-                      ▼
+   Streamlit dashboard ─┐                 ┌─ FastAPI REST gateway      (interface tier)
+   (click-drilldown,    │                 │  /query /drilldown ...
+    chat panel)         └──────┬──────────┘
+                               │  A2A / HTTP
+                               ▼
+                   ┌────────────────────────────┐
+                   │  Orchestrator  (A2A server) │  container :9000   ── orchestrator tier
+                   │  Strands Agent + A2A client │
+                   └─────────────┬──────────────┘
+                                 │  A2A (agent cards, JSON-RPC)
+        ┌────────────────┬───────┴────────┬──────────────────┐
+        ▼                ▼                ▼                  ▼
+ ┌────────────┐  ┌────────────┐   ┌────────────┐    ┌────────────┐
+ │Cost-Analysis│ │Optimization│   │ Anomaly/   │    │ CUR/Athena │   sub-agent tier
+ │ A2A :9001   │ │ A2A :9002  │   │ Forecast   │    │ A2A :9004  │   (each = A2AServer
+ └─────┬───────┘ └─────┬──────┘   │ A2A :9003  │    └─────┬──────┘    container)
+       │  MCP          │  MCP     └─────┬──────┘          │  MCP
+       ▼               ▼                ▼                 ▼
+ ┌────────────┐  ┌────────────┐  ┌────────────┐   ┌────────────┐
+ │ cost-tools │  │ optimize-  │  │ anomaly-   │   │ cur-tools  │     tool tier
+ │ MCP :8081  │  │ tools MCP  │  │ tools MCP  │   │ MCP :8084  │     (each = FastMCP
+ └─────┬──────┘  └─────┬──────┘  └─────┬──────┘   └─────┬──────┘      container)
+       └───────────────┴───────────────┴────────────────┘
+                                 │  boto3 (per-service AWS Access Layer in finops_core)
+                                 ▼
    AWS APIs: ce · cost-optimization-hub · compute-optimizer · budgets ·
              support/trustedadvisor · bcm-data-exports · athena · organizations ·
-             pricing · freetier · sts · savingsplans
-
-   Bedrock Runtime (Claude Sonnet 4.x / Nova Pro / Haiku) for agent reasoning.
+             pricing · freetier · sts          +  Bedrock Runtime (agent reasoning)
 ```
+*(Phase 1 ships the cost slice — orchestrator + cost-agent + cost-tools — live and verified.
+Optimization/Anomaly/CUR tiers are dashed-in templates for later phases.)*
 
-**Key architectural principle — one source of truth, two callers.**
-Every AWS capability is a deterministic Python function in the **Direct Tool Layer**.
-The same functions are registered as Strands `@tool`s on the agents. So:
-- **UI clicks** (cost table, drill-down) call the tool layer **directly** — no LLM in
-  the loop → fast, cheap, deterministic, exact numbers.
-- **Chat / open-ended questions** go through the **agent**, which calls the same tools
-  and adds reasoning/narrative.
-
-This keeps numbers consistent between "click" and "ask," and bounds LLM token cost.
+**Key architectural principle — one source of truth.**
+Every AWS capability is a deterministic Python function in `finops_core` (e.g.
+`CostExplorer`). Each is served as an **MCP tool** (for agents) and is also callable
+**directly** by the API/UI fast path (no LLM → exact, cheap numbers for table clicks).
+So "click" and "ask" resolve to the *same* function and always agree; the LLM adds
+narrative, never arithmetic. Distribution wraps — never forks — this core.
 
 ---
 
@@ -374,29 +372,30 @@ controls **which tools are registered** and **which IAM policy** is expected.
 
 ## 12. Docker & Sandbox
 
-### 12.1 Images & compose
-- **Multi-stage Dockerfile**, Python 3.12-slim base, non-root `finops` user, no build
-  toolchain in final layer.
-- **`docker-compose.yml`** with services:
-  - `dashboard` (Streamlit, port 8501)
-  - `api` (FastAPI/uvicorn, port 8000)
-  - shared volume for config; both import the same `finops_core` package.
-- **Credentials** wired three ways (pick via env):
-  - `~/.aws` bind-mounted **read-only** (`/home/finops/.aws:ro`) + `AWS_PROFILE`.
-  - `AWS_ACCESS_KEY_ID/...` via `.env` / docker secrets.
-  - Assume-role: base creds (either of above) + `FINOPS_ROLE_ARN`.
+### 12.1 Images & compose (distributed)
+- **One image** (Python 3.12-slim base, non-root `finops` uid 10001) runs every service via
+  the `finops serve <service>` entrypoint. Built with the `[agent,api]` extras (Strands
+  A2A + MCP + FastAPI).
+- **`docker-compose.yml`** services (each its own container, shared network, YAML-anchored base):
+  - `cost-tools` — FastMCP server (`:8081/mcp`)  *(tool tier)*
+  - `cost-agent` — Cost-Analysis A2A server (`:9001`), consumes `cost-tools` over MCP  *(sub-agent tier)*
+  - `orchestrator` — A2A server (`:9000`, host-published), routes to sub-agents via A2A client
+  - `preflight` — one-shot identity + Bedrock check
+  - *(later phases add `optimize-tools`/`optimize-agent`, `anomaly-*`, `cur-*`, plus `api` + `dashboard`)*
+- **Inter-service addressing** via Docker DNS + `FINOPS_*_URL` / `FINOPS_A2A_PUBLIC_URL` env
+  (e.g. `http://cost-tools:8081/mcp`, `http://cost-agent:9001`). MCP connect retries on startup races.
+- **Credentials** wired three ways (each container mounts `~/.aws:ro` or uses env / assume-role):
+  agent + tool containers each need creds (Bedrock for agents, Cost Explorer for tools).
 
-### 12.2 Hardened "sandbox" compose profile (`docker-compose.sandbox.yml`)
-For running in a restricted/sandboxed context:
-- `read_only: true` root filesystem + explicit `tmpfs` for scratch.
-- `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, non-root uid.
-- **Egress allowlist** to AWS endpoints + Bedrock only (documented; enforced via the
-  sandbox's network policy / proxy). No inbound except the mapped UI/API ports on localhost.
-- Credentials mounted **read-only**; no write to `~/.aws`.
-- Resource limits (cpu/mem) set; secrets never baked into the image or logs.
+### 12.2 Hardened "sandbox" overlay (`docker-compose.sandbox.yml`)
+Applied to **every** service: `read_only: true` root FS + `tmpfs` scratch, `cap_drop: [ALL]`,
+`security_opt: [no-new-privileges:true]`, non-root uid, `pids_limit` + `mem_limit`. Egress is
+AWS + Bedrock only (documented; enforced by the sandbox network policy). Creds read-only; no
+secrets in images/logs. **Verified**: full stack runs and answers under the hardened overlay.
 
 ### 12.3 Local (no Docker)
-- `pip install -e .` + `make dashboard` / `make api`; uses the same config + `~/.aws`.
+- `make install` then `finops serve cost-tools` / `cost-agent` / `orchestrator` in separate
+  shells, or `finops ask "..."` for the in-process agent. Same `finops_core` + `~/.aws`.
 
 ---
 
@@ -508,31 +507,36 @@ AWSFinOpsAgent/
 │   ├── finops-readonly-policy.json
 │   └── finops-guarded-write-policy.json
 ├── finops_core/
-│   ├── aws/            # session resolver, org resolver, cache, paginators
-│   ├── tools/          # @tool wrappers (cost, optimize, anomaly, cur, pricing, org, remediation)
-│   ├── agents/         # orchestrator + specialists + prompts
-│   ├── workflow/       # scheduled digest DAG + delivery adapters
-│   ├── models/         # ModelRouter, fallback
-│   ├── schemas/        # normalized dataclasses
-│   └── config.py
+│   ├── aws/            # session resolver, identity+redaction, TTL cache  [✓]
+│   ├── cost/           # CostExplorer engine + date helpers              [✓ Phase 1]
+│   ├── schemas/        # normalized dataclasses (cost; later optimize…)  [✓]
+│   ├── tools/          # Strands @tool wrappers (cost; later optimize…)  [✓ cost]
+│   ├── mcp_servers/    # FastMCP tool servers (cost_server; later …)     [✓ cost]
+│   ├── services/       # A2A servers: cost_agent, orchestrator (+helper) [✓ cost]
+│   ├── agents/         # agent builders + prompts                        [✓ cost]
+│   ├── models/         # ModelRouter (Bedrock + fallback + preflight)    [✓]
+│   ├── workflow/       # scheduled digest DAG + delivery adapters        [ ]
+│   ├── format.py       # CLI table rendering                             [✓]
+│   ├── preflight.py · cli.py · config.py                                 [✓]
 ├── apps/
-│   ├── dashboard/      # Streamlit
-│   └── api/            # FastAPI
+│   ├── dashboard/      # Streamlit  [ Phase 2 ]
+│   └── api/            # FastAPI    [ Phase 5 ]
 └── tests/
-    ├── unit/           # tool wrappers (moto/botocore stubs)
-    ├── accuracy/       # numbers-match-CE golden tests
-    └── e2e/            # docker smoke
+    ├── unit/           # dates + Cost Explorer normalization (botocore Stubber)  [✓]
+    └── accuracy/       # numbers-consistency invariant                           [✓]
 ```
+*([✓] = built & verified in Phase 0/1.)*
 
 ---
 
 ## 18. Milestones
 
-| Phase | Deliverable | Exit criteria |
-|---|---|---|
-| **0. Scaffold** | Repo, config, AWS session layer, model router, Bedrock preflight | `get_caller_identity` works in Docker w/ all 3 cred modes |
-| **1. Cost core** | Cost-analysis tools + Cost-Analysis agent + CLI smoke | Accurate cost-per-service + drill-down vs console |
-| **2. Dashboard MVP** | Streamlit overview + cost table + **double-click drill-down** + chat | Journey A end-to-end |
+| Phase | Deliverable | Exit criteria | Status |
+|---|---|---|---|
+| **0. Scaffold** | Repo, config, AWS session layer, model router, Bedrock preflight | `get_caller_identity` works in Docker w/ all 3 cred modes | ✅ **Done** (preflight PASS local + Docker + sandbox) |
+| **1. Cost core** | Cost-analysis tools + Cost-Analysis agent + CLI smoke | Accurate cost-per-service + drill-down vs console | ✅ **Done** — see Phase-1 evidence below |
+| **1d. Distribute (cost slice)** | cost-tools MCP server + cost-agent A2A + orchestrator A2A + compose | Distributed stack answers in Docker + sandbox, numbers exact | ✅ **Done** (bundled into Phase 1) |
+| **2. Dashboard MVP** | Streamlit overview + cost table + **double-click drill-down** + chat | Journey A end-to-end | ☐ |
 | **3. Optimization** | Optimization tools/agent, ranked dedup findings | Journey B (advisory) |
 | **4. Anomaly/forecast/budgets** | Tools + tab | Anomalies & budgets visible |
 | **5. API** | FastAPI over same core | All endpoints + OpenAPI |
@@ -541,6 +545,20 @@ AWSFinOpsAgent/
 | **8. Remediation modes** | `artifacts` + `guarded_write` + audit | Confirmed action w/ audit entry |
 | **9. Org/multi-account** | assume-role fan-out, per-account split | Per-linked-account costs |
 | **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests |
+
+### Phase-1 verification evidence (2026-06-19)
+- **Numbers reconcile against live Cost Explorer**: `by-service` total == `summary` total
+  ($298.14, last 3 mo); MTD ($172.60) == the June slice; **drill-down** VPC→usage-type totals
+  $17.61 == its service line; all sub-breakdowns sum to the grand total.
+- **In-process agent** (Claude Sonnet 4.5 on Bedrock) calls `get_cost_by_service` → `drill_down`
+  and returns figures identical to the deterministic CLI.
+- **Distributed** (3 containers, A2A + MCP): cost-agent and orchestrator return the same exact
+  numbers — in normal Docker **and** the hardened sandbox overlay.
+- **Tests**: 14 unit/accuracy tests pass (date presets, CE normalization via botocore Stubber,
+  by-service==summary invariant).
+- **Known gap** → Phase 2: the orchestrator LLM can paraphrase a sub-agent's per-service figures;
+  prompt hardened to quote verbatim, but the durable fix is a deterministic pass-through of
+  structured tool results (don't let the orchestrator re-render numbers).
 
 ---
 

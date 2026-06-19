@@ -1,16 +1,24 @@
-# Hardened sandbox overlay. Apply on top of docker-compose.yml:
-#   docker compose -f docker-compose.yml -f docker-compose.sandbox.yml run --rm preflight
+# Hardened sandbox overlay for the distributed stack. Apply on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.sandbox.yml up -d
 # Read-only root FS, dropped Linux caps, no privilege escalation, resource limits.
+
+x-hardened: &hardened
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /home/finops/.cache
+  cap_drop: ["ALL"]
+  security_opt:
+    - no-new-privileges:true
+  pids_limit: 512
+  mem_limit: 1g
+
 services:
   preflight:
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /home/finops/.cache
-    cap_drop: ["ALL"]
-    security_opt:
-      - no-new-privileges:true
-    pids_limit: 256
-    mem_limit: 512m
-    cpus: 1.0
-    # Credentials remain read-only (mounted by the base file). No inbound ports.
+    <<: *hardened
+  cost-tools:
+    <<: *hardened
+  cost-agent:
+    <<: *hardened
+  orchestrator:
+    <<: *hardened

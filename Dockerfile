@@ -8,11 +8,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install package + base deps (Phase-0 preflight needs only boto3 + pyyaml).
-# Add extras here (e.g. ".[agent,api,dashboard]") as later phases land.
+# Install package + agent (A2A/MCP) + api extras so this one image runs every service:
+# preflight, cost-tools MCP server, and the A2A agent/orchestrator servers.
 COPY pyproject.toml README.md ./
 COPY finops_core ./finops_core
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e ".[agent,api]"
 
 # Config is also bind-mounted read-only at runtime via compose.
 COPY config ./config

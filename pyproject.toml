@@ -16,10 +16,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Strands agent runtime (not needed for Phase-0 preflight)
+# Strands agent runtime (not needed for Phase-0 preflight).
+# Includes A2A (distributed agents) + MCP (distributed tools).
 agent = [
-  "strands-agents>=0.1",
-  "strands-agents-tools>=0.1",
+  "strands-agents[a2a]>=0.1",
+  "strands-agents-tools[a2a_client]>=0.1",
+  "mcp>=1.0",
 ]
 api = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
 dashboard = ["streamlit>=1.33", "pandas>=2.0", "altair>=5.0"]
@@ -34,3 +36,7 @@ include = ["finops_core*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
