@@ -24,6 +24,20 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
     command: ["preflight"]
 
+  # One-shot scheduled digest. Run via cron/EventBridge: docker compose run --rm digest
+  digest:
+    <<: *finops-base
+    restart: "no"
+    profiles: ["digest"]
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+    volumes:
+      - ${HOME}/.aws:/home/finops/.aws:ro
+      - ./config:/app/config:ro
+      - ./reports:/app/reports
+    command: ["digest", "--format", "md", "--deliver", "file"]
+
   # Distributed TOOL tier — Cost Explorer tools over MCP (Streamable HTTP)
   cost-tools:
     <<: *finops-base
