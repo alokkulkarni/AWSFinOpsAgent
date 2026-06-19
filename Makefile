@@ -31,6 +31,27 @@ docker-preflight:
 sandbox-preflight:
 	docker compose -f docker-compose.yml -f docker-compose.sandbox.yml run --rm preflight
 
+# Distributed stack (cost-tools MCP + cost-agent/orchestrator A2A + dashboard)
+stack-up:
+	docker compose up -d --build
+
+stack-up-sandbox:
+	docker compose -f docker-compose.yml -f docker-compose.sandbox.yml up -d --build
+
+stack-logs:
+	docker compose logs -f
+
+stack-down:
+	docker compose down
+
+# Run a single distributed service locally (each in its own shell)
+serve-cost-tools:
+	$(PY) -m finops_core.cli serve cost-tools
+serve-cost-agent:
+	$(PY) -m finops_core.cli serve cost-agent
+serve-orchestrator:
+	$(PY) -m finops_core.cli serve orchestrator
+
 test:
 	$(PY) -m pytest -q
 

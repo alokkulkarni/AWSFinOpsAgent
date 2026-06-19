@@ -22,3 +22,14 @@ services:
     <<: *hardened
   orchestrator:
     <<: *hardened
+  dashboard:
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/finops/.cache
+      - /home/finops/.streamlit     # streamlit writes config/usage here
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 1g
