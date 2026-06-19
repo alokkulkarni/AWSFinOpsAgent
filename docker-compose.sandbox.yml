@@ -24,6 +24,10 @@ services:
     <<: *hardened
   optimize-agent:
     <<: *hardened
+  anomaly-tools:
+    <<: *hardened
+  anomaly-agent:
+    <<: *hardened
   orchestrator:
     <<: *hardened
   dashboard:

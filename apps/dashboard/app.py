@@ -172,6 +172,47 @@ try:
 except Exception as e:
     st.caption(f"(optimization unavailable: {e})")
 
+# ---- anomalies & budgets (deterministic) -----------------------------------
+st.subheader("Anomalies & budgets")
+
+
+@st.cache_data(show_spinner="Checking anomalies & budgets…", ttl=600)
+def anomalies_budgets():
+    from finops_core.anomaly.engine import AnomalyEngine
+    from finops_core.aws.session import build_session
+    c = Config.load()
+    eng = AnomalyEngine(build_session(c), c)
+    return eng.anomalies(period="30d").to_dict(), eng.budgets().to_dict()
+
+
+try:
+    anom, buds = anomalies_budgets()
+    ac, bc = st.columns(2)
+    with ac:
+        st.caption(f"Anomalies (30d): {anom['count']} · impact "
+                   f"{money(anom['total_impact'], anom['currency'])}")
+        if anom["anomalies"]:
+            st.dataframe(pd.DataFrame([{
+                "impact": a["total_impact"], "date": a["start"][:10],
+                "service": a["dimension"],
+            } for a in anom["anomalies"]]).style.format(
+                {"impact": lambda v: money(v, anom["currency"])}),
+                width="stretch", hide_index=True)
+        for n in anom["notes"]:
+            st.caption(f"• {n}")
+    with bc:
+        st.caption(f"Budgets: {buds['count']}")
+        for b in buds["budgets"]:
+            flag = " 🔴 OVER" if b["breached"] else (" 🟠 forecast breach" if b["forecast_breach"] else " 🟢")
+            st.write(f"**{b['name']}**{flag} — {money(b['actual'], b['currency'])} / "
+                     f"{money(b['limit'], b['currency'])} ({b['pct_used']}% used)")
+            if b["pct_used"] is not None:
+                st.progress(min(1.0, (b["pct_used"] or 0) / 100))
+        for n in buds["notes"]:
+            st.caption(f"• {n}")
+except Exception as e:
+    st.caption(f"(anomalies/budgets unavailable: {e})")
+
 # ---- chat (narrative only; numbers above are authoritative) ---------------
 st.subheader("Ask the FinOps agent")
 st.caption("The agent explains and explores; the tables above are the source of truth for figures.")

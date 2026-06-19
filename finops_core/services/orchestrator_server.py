@@ -29,9 +29,9 @@ def main() -> None:
 
     # Known specialist sub-agents (A2A). Add more as later phases land.
     known = [os.getenv("FINOPS_COST_AGENT_URL", "http://127.0.0.1:9001")]
-    optimize_url = os.getenv("FINOPS_OPTIMIZE_AGENT_URL")
-    if optimize_url:
-        known.append(optimize_url)
+    for env in ("FINOPS_OPTIMIZE_AGENT_URL", "FINOPS_ANOMALY_AGENT_URL"):
+        if os.getenv(env):
+            known.append(os.environ[env])
 
     # A2A client tools: discovery + delegation to known specialist agents.
     provider = A2AClientToolProvider(known_agent_urls=known)

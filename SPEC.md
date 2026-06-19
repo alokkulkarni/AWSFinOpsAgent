@@ -249,7 +249,7 @@ All tools are thin, typed, paginated boto3 wrappers returning **normalized datac
 | `get_trusted_advisor_cost_checks()` | `support:DescribeTrustedAdvisorCheck*` / `trustedadvisor` (needs Business/Enterprise support; degrades if not) |
 | `get_idle_resources()` | derived: Compute Optimizer "Idle" + CUR zero-usage heuristics |
 
-### 7.3 Anomaly, budget, forecast
+### 7.3 Anomaly, budget, forecast  ✅ *Phase 4 — distributed anomaly tier (anomaly-tools MCP + anomaly-agent A2A): anomalies (ranked, root causes), budgets (actual + forecast vs limit, breach flags), forecast-vs-budget.*
 | Tool | AWS API |
 |---|---|
 | `get_cost_anomalies(start, end, monitor_arn)` | `ce:GetAnomalies` |
@@ -543,7 +543,7 @@ AWSFinOpsAgent/
 | **1d. Distribute (cost slice)** | cost-tools MCP server + cost-agent A2A + orchestrator A2A + compose | Distributed stack answers in Docker + sandbox, numbers exact | ✅ **Done** (bundled into Phase 1) |
 | **2. Dashboard MVP** | Streamlit overview + cost table + **double-click drill-down** + chat | Journey A end-to-end | ✅ **Done** — deterministic data layer; drill-down verified headlessly (AppTest) + dockerized |
 | **3. Optimization** | Optimization tools/agent, ranked dedup findings | Journey B (advisory) | ✅ **Done** — distributed optimize tier (MCP + A2A); 2-agent orchestrator routing verified in Docker; graceful degradation when sources not enrolled |
-| **4. Anomaly/forecast/budgets** | Tools + tab | Anomalies & budgets visible |
+| **4. Anomaly/forecast/budgets** | Tools + tab | Anomalies & budgets visible | ✅ **Done** — distributed anomaly tier (MCP + A2A); real anomalies + over-budget surfaced in CLI/dashboard; orchestrator routes anomaly Qs (budget-routing can occasionally deflect — see number-relay note) |
 | **5. API** | FastAPI over same core | All endpoints + OpenAPI |
 | **6. CUR/Athena** | NL→SQL, query, **provision** tool | Resource-level drill-down when CUR on |
 | **7. Workflow digest** | Scheduled report + delivery | Markdown/HTML/JSON digest |

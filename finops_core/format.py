@@ -1,6 +1,7 @@
 """Terminal rendering for cost results (CLI fast path)."""
 from __future__ import annotations
 
+from finops_core.schemas.anomaly import AnomalyReport, BudgetReport
 from finops_core.schemas.cost import CostBreakdown, CostSummary, Forecast
 from finops_core.schemas.optimize import OptimizationReport, Recommendation
 
@@ -45,6 +46,32 @@ def print_recommendations(recs: list, notes: list) -> None:
         if r.current or r.recommended:
             print(f"               {r.current or '?'}  →  {r.recommended or '?'}")
     for n in notes:
+        print(f"  ! {n}")
+
+
+def print_anomalies(rep: AnomalyReport) -> None:
+    print(f"\nAnomalies [{rep.start} .. {rep.end}]: {rep.count}, "
+          f"total impact {money(rep.total_impact, rep.currency)}")
+    for a in rep.anomalies:
+        rc = f"  ({', '.join(a.root_causes)})" if a.root_causes else ""
+        print(f"  {money(a.total_impact, a.currency):>11}  {a.start}  {a.dimension}{rc}")
+    for n in rep.notes:
+        print(f"  ! {n}")
+
+
+def print_budgets(rep: BudgetReport) -> None:
+    print(f"\nBudgets: {rep.count}")
+    for b in rep.budgets:
+        flags = []
+        if b.breached:
+            flags.append("OVER")
+        if b.forecast_breach:
+            flags.append("FORECAST-BREACH")
+        flag = ("  [" + ", ".join(flags) + "]") if flags else ""
+        fc = f", forecast {money(b.forecasted, b.currency)}" if b.forecasted is not None else ""
+        print(f"  {b.name}: {money(b.actual, b.currency)} / {money(b.limit, b.currency)} "
+              f"({b.pct_used}% used{fc}){flag}")
+    for n in rep.notes:
         print(f"  ! {n}")
 
 
