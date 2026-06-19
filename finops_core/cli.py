@@ -96,6 +96,14 @@ def _build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--remote", default=None,
                      metavar="URL", help="call a remote A2A agent (e.g. http://localhost:9000)")
 
+    # digest — scheduled FinOps report (the Workflow DAG)
+    dg = sub.add_parser("digest", help="build the FinOps digest report (spend, anomalies, savings)")
+    dg.add_argument("--config", default=None)
+    dg.add_argument("--format", default="md", choices=["md", "html", "json"])
+    dg.add_argument("--narrative", action="store_true", help="add a short LLM summary")
+    dg.add_argument("--deliver", default=None, help="comma list: file,slack,sns,ses")
+    dg.add_argument("--out", default=None, help="output file path (with --deliver file)")
+
     # route — deterministic intent routing to a specialist (no orchestrator-LLM guesswork)
     rt = sub.add_parser("route", help="classify a question and route it to the right specialist")
     rt.add_argument("question")
@@ -333,6 +341,21 @@ def main(argv: Optional[list] = None) -> int:
         return _run_cost(args)
     if cmd == "ask":
         return _run_ask(args)
+    if cmd == "digest":
+        from finops_core.aws.session import build_session
+        from finops_core.config import Config
+        from finops_core.workflow.digest import build_digest
+        cfg = Config.load(args.config)
+        session = build_session(cfg)
+        report = build_digest(cfg, session, fmt=args.format, with_narrative=args.narrative)
+        if args.deliver:
+            from finops_core.workflow.delivery import deliver
+            targets = [t.strip() for t in args.deliver.split(",") if t.strip()]
+            results = deliver(report, args.format, targets, cfg, session, out=args.out)
+            print(f"delivered: {results}")
+        else:
+            print(report)
+        return 0
     if cmd == "route":
         from finops_core.aws.session import build_session
         from finops_core.config import Config

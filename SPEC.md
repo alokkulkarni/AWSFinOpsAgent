@@ -359,7 +359,7 @@ controls **which tools are registered** and **which IAM policy** is expected.
 
 ---
 
-## 11. Scheduled Digest (Workflow)
+## 11. Scheduled Digest (Workflow)  ✅ *Phase 7 — `finops_core/workflow/`: `gather()` runs the independent sections in parallel (ThreadPoolExecutor = the DAG), renders md/html/json deterministically, optional `digest`-model narrative; `delivery.py` = file/Slack/SNS/SES. Surfaces: `finops digest`, `POST /report/digest`, one-shot `digest` compose service (cron/EventBridge).*
 
 - Triggered by: local `cron`/`schedule` loop, container entrypoint flag
   (`--mode digest`), or EventBridge (if later deployed). Not required for interactive use.
@@ -546,7 +546,7 @@ AWSFinOpsAgent/
 | **4. Anomaly/forecast/budgets** | Tools + tab | Anomalies & budgets visible | ✅ **Done** — distributed anomaly tier (MCP + A2A); real anomalies + over-budget surfaced in CLI/dashboard; orchestrator routes anomaly Qs (budget-routing can occasionally deflect — see number-relay note) |
 | **5. API** | FastAPI over same core | All endpoints + OpenAPI | ✅ **Done** — deterministic /cost /optimize /anomalies /budgets + intent-routed /query; OpenAPI /docs; dockerized; verified live |
 | **6. CUR/Athena** | NL→SQL, query, **provision** tool | Resource-level drill-down when CUR on |
-| **7. Workflow digest** | Scheduled report + delivery | Markdown/HTML/JSON digest |
+| **7. Workflow digest** | Scheduled report + delivery | Markdown/HTML/JSON digest | ✅ **Done** — parallel-DAG gather → md/html/json render (deterministic) + optional LLM narrative; file/Slack/SNS/SES delivery; `finops digest`, POST /report/digest, one-shot compose service |
 | **8. Remediation modes** | `artifacts` + `guarded_write` + audit | Confirmed action w/ audit entry |
 | **9. Org/multi-account** | assume-role fan-out, per-account split | Per-linked-account costs |
 | **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests |

@@ -63,6 +63,11 @@ class QueryRequest(BaseModel):
     question: str
 
 
+class DigestRequest(BaseModel):
+    format: str = "md"
+    narrative: bool = False
+
+
 # ---- meta ------------------------------------------------------------------
 @app.get("/healthz")
 def healthz():
@@ -129,6 +134,13 @@ def budgets(eng: AnomalyEngine = Depends(get_anomaly)):
 
 
 # ---- intent-routed chat ----------------------------------------------------
+@app.post("/report/digest")
+def report_digest(req: DigestRequest, cfg: Config = Depends(get_config)):
+    from finops_core.workflow.digest import build_digest
+    report = build_digest(cfg, get_session(), fmt=req.format, with_narrative=req.narrative)
+    return {"format": req.format, "report": report}
+
+
 @app.post("/query")
 def query(req: QueryRequest, cfg: Config = Depends(get_config)):
     try:
