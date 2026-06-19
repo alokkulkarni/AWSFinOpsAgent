@@ -77,6 +77,18 @@ def _build_parser() -> argparse.ArgumentParser:
         p.add_argument("--config", default=None)
         p.add_argument("--json", action="store_true")
 
+    # anomaly group
+    anom = sub.add_parser("anomaly", help="cost anomalies + budgets")
+    asub = anom.add_subparsers(dest="view")
+    pa = asub.add_parser("anomalies")
+    pa.add_argument("--config", default=None)
+    pa.add_argument("--period", default="30d")
+    pa.add_argument("--json", action="store_true")
+    for name in ("budgets", "forecast-vs-budget"):
+        p = asub.add_parser(name)
+        p.add_argument("--config", default=None)
+        p.add_argument("--json", action="store_true")
+
     # ask (agent) — local in-process, or a remote A2A endpoint (distributed)
     ask = sub.add_parser("ask", help="ask the Cost-Analysis agent (local) or a remote A2A agent")
     ask.add_argument("question")
@@ -87,7 +99,8 @@ def _build_parser() -> argparse.ArgumentParser:
     # serve — run a distributed service (used as the container command)
     srv = sub.add_parser("serve", help="run a distributed service (MCP tool / A2A agent server)")
     srv.add_argument("service", choices=["cost-tools", "cost-agent", "orchestrator",
-                                         "optimize-tools", "optimize-agent"])
+                                         "optimize-tools", "optimize-agent",
+                                         "anomaly-tools", "anomaly-agent"])
 
     return parser
 
@@ -209,6 +222,41 @@ def _run_optimize(args) -> int:
     return 0
 
 
+def _run_anomaly(args) -> int:
+    from finops_core import format as fmt
+    from finops_core.anomaly.engine import AnomalyEngine
+    from finops_core.aws.session import build_session
+    from finops_core.config import Config
+    from finops_core.cost.explorer import CostExplorer
+
+    if not args.view:
+        print("usage: finops anomaly {anomalies,budgets,forecast-vs-budget}")
+        return 1
+    cfg = Config.load(getattr(args, "config", None))
+    try:
+        session = build_session(cfg)
+        eng = AnomalyEngine(session, cfg)
+    except Exception as e:
+        print(f"[error] could not create AWS session: {e}")
+        return 2
+
+    if args.view == "anomalies":
+        rep = eng.anomalies(period=args.period)
+        print(json.dumps(rep.to_dict(), indent=2)) if args.json else fmt.print_anomalies(rep)
+    elif args.view == "budgets":
+        rep = eng.budgets()
+        print(json.dumps(rep.to_dict(), indent=2)) if args.json else fmt.print_budgets(rep)
+    else:  # forecast-vs-budget
+        fc = CostExplorer(session, cfg).forecast(horizon="eom")
+        rep = eng.budgets()
+        if args.json:
+            print(json.dumps({"forecast_eom": fc.total, "budgets": rep.to_dict()}, indent=2))
+        else:
+            print(f"\nForecast EOM: {fmt.money(fc.total, fc.currency)}")
+            fmt.print_budgets(rep)
+    return 0
+
+
 def _result_text(result) -> str:
     """Extract plain text from a Strands AgentResult / A2A result."""
     msg = getattr(result, "message", None)
@@ -282,6 +330,8 @@ def main(argv: Optional[list] = None) -> int:
         return _run_ask(args)
     if cmd == "optimize":
         return _run_optimize(args)
+    if cmd == "anomaly":
+        return _run_anomaly(args)
     if cmd == "serve":
         servers = {
             "cost-tools": "finops_core.mcp_servers.cost_server",
@@ -289,6 +339,8 @@ def main(argv: Optional[list] = None) -> int:
             "orchestrator": "finops_core.services.orchestrator_server",
             "optimize-tools": "finops_core.mcp_servers.optimize_server",
             "optimize-agent": "finops_core.services.optimize_agent_server",
+            "anomaly-tools": "finops_core.mcp_servers.anomaly_server",
+            "anomaly-agent": "finops_core.services.anomaly_agent_server",
         }
         import importlib
         importlib.import_module(servers[args.service]).main()
