@@ -1,47 +1,64 @@
-# Local Docker. Credentials are wired three ways — pick via FINOPS_AWS_AUTH (see .env.example).
-# .env is optional; copy .env.example -> .env to customize.
+# Distributed FinOps stack — every tier is its own container on a shared network:
+#   cost-tools (MCP tool server) <- cost-agent (A2A sub-agent) <- orchestrator (A2A)
+# All reuse one image (built from this repo) and the shared finops_core library.
+# Credentials are wired three ways via FINOPS_AWS_AUTH (see .env.example); .env is optional.
+
+x-finops-base: &finops-base
+  build: .
+  image: aws-finops-agent:dev
+  env_file:
+    - path: .env
+      required: false
+  volumes:
+    - ${HOME}/.aws:/home/finops/.aws:ro      # local creds, read-only
+    - ./config:/app/config:ro
+  restart: unless-stopped
+
 services:
+  # One-shot identity + Bedrock preflight
   preflight:
-    build: .
-    image: aws-finops-agent:dev
-    env_file:
-      - path: .env
-        required: false
+    <<: *finops-base
+    restart: "no"
     environment:
       HOME: /home/finops
-    volumes:
-      - ${HOME}/.aws:/home/finops/.aws:ro     # local creds, read-only (profile/assume base)
-      - ./config:/app/config:ro
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     command: ["preflight"]
 
-  # Placeholder until Phase 5 (FastAPI). Run with: docker compose --profile serve up api
-  api:
-    build: .
-    image: aws-finops-agent:dev
-    profiles: ["serve"]
-    env_file:
-      - path: .env
-        required: false
+  # Distributed TOOL tier — Cost Explorer tools over MCP (Streamable HTTP)
+  cost-tools:
+    <<: *finops-base
     environment:
       HOME: /home/finops
-    volumes:
-      - ${HOME}/.aws:/home/finops/.aws:ro
-      - ./config:/app/config:ro
-    command: ["preflight"]
-    ports: ["8000:8000"]
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      FINOPS_MCP_HOST: "0.0.0.0"
+      FINOPS_MCP_PORT: "8081"
+    expose: ["8081"]
+    command: ["serve", "cost-tools"]
 
-  # Placeholder until Phase 2 (Streamlit).
-  dashboard:
-    build: .
-    image: aws-finops-agent:dev
-    profiles: ["serve"]
-    env_file:
-      - path: .env
-        required: false
+  # Distributed SUB-AGENT tier — Cost-Analysis specialist over A2A (consumes cost-tools)
+  cost-agent:
+    <<: *finops-base
+    depends_on: [cost-tools]
     environment:
       HOME: /home/finops
-    volumes:
-      - ${HOME}/.aws:/home/finops/.aws:ro
-      - ./config:/app/config:ro
-    command: ["preflight"]
-    ports: ["8501:8501"]
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      FINOPS_COST_TOOLS_URL: "http://cost-tools:8081/mcp"
+      FINOPS_A2A_HOST: "0.0.0.0"
+      FINOPS_A2A_PORT: "9001"
+      FINOPS_A2A_PUBLIC_URL: "http://cost-agent:9001"
+    expose: ["9001"]
+    command: ["serve", "cost-agent"]
+
+  # ORCHESTRATOR tier — routes to specialists over A2A; single entrypoint
+  orchestrator:
+    <<: *finops-base
+    depends_on: [cost-agent]
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      FINOPS_COST_AGENT_URL: "http://cost-agent:9001"
+      FINOPS_A2A_HOST: "0.0.0.0"
+      FINOPS_A2A_PORT: "9000"
+      FINOPS_A2A_PUBLIC_URL: "http://orchestrator:9000"
+    ports: ["9000:9000"]
+    command: ["serve", "orchestrator"]
