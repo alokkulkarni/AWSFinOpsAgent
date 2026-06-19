@@ -1,0 +1,25 @@
+# AWS FinOps Agent — runtime config. Env vars override these (see .env.example).
+mode: advisory                 # advisory | artifacts | guarded_write
+
+aws:
+  auth: profile                # profile | env | assume_role
+  profile: default
+  region: us-east-1            # operational region (Compute Optimizer, Athena, ...)
+  ce_region: us-east-1         # Cost Explorer / Budgets endpoint (keep us-east-1)
+  org_mode: false
+  assume_base: env             # base creds for assume_role: env | profile
+  role_arn: null               # required when auth=assume_role
+  external_id: null
+
+llm:
+  provider: bedrock            # bedrock | anthropic
+  region: us-east-1            # Bedrock runtime region
+  roles: {}                    # per-role overrides; canonical IDs live in config/models.yaml
+
+cache:
+  ttl_seconds: 3600
+
+guardrails:
+  athena_max_scanned_gb: 10
+  require_confirmation: true
+  redact_account_ids: true

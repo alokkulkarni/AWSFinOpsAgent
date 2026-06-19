@@ -1,0 +1,14 @@
+# Bedrock inference-profile IDs per agent role.
+# These are cross-region inference profiles (us./eu. prefixed). Update to match your
+# region + enabled model access. Verify availability with: make preflight
+#   (or: aws bedrock list-inference-profiles --region <llm-region>)
+roles:
+  orchestrator: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  cost:         us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  optimization: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  sql:          us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  digest:       us.amazon.nova-pro-v1:0
+
+# Cheaper/faster fallback used on throttling or to bound cost (Claude Haiku 4.5)
+fallback:
+  - us.anthropic.claude-haiku-4-5-20251001-v1:0

@@ -1,0 +1,47 @@
+# Local Docker. Credentials are wired three ways — pick via FINOPS_AWS_AUTH (see .env.example).
+# .env is optional; copy .env.example -> .env to customize.
+services:
+  preflight:
+    build: .
+    image: aws-finops-agent:dev
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOME: /home/finops
+    volumes:
+      - ${HOME}/.aws:/home/finops/.aws:ro     # local creds, read-only (profile/assume base)
+      - ./config:/app/config:ro
+    command: ["preflight"]
+
+  # Placeholder until Phase 5 (FastAPI). Run with: docker compose --profile serve up api
+  api:
+    build: .
+    image: aws-finops-agent:dev
+    profiles: ["serve"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOME: /home/finops
+    volumes:
+      - ${HOME}/.aws:/home/finops/.aws:ro
+      - ./config:/app/config:ro
+    command: ["preflight"]
+    ports: ["8000:8000"]
+
+  # Placeholder until Phase 2 (Streamlit).
+  dashboard:
+    build: .
+    image: aws-finops-agent:dev
+    profiles: ["serve"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOME: /home/finops
+    volumes:
+      - ${HOME}/.aws:/home/finops/.aws:ro
+      - ./config:/app/config:ro
+    command: ["preflight"]
+    ports: ["8501:8501"]

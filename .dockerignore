@@ -1,0 +1,47 @@
+# Keep the build context small and secret-free.
+# NOTE: the Dockerfile needs README.md, pyproject.toml, finops_core/, config/ — do NOT ignore those.
+
+# VCS / CI
+.git
+.github
+.gitignore
+.dockerignore
+
+# Secrets — must never enter the image
+.env
+.env.*
+**/.aws
+**/credentials
+*.pem
+*.key
+secrets/
+
+# Python caches / envs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Docs & local-only (not needed at runtime)
+SPEC.md
+CLAUDE.md
+CONTRIBUTING.md
+SECURITY.md
+LICENSE
+Makefile
+docker-compose*.yml
+tests/
+reports/
+audit/
+athena-output/
+*.parquet
+*.log

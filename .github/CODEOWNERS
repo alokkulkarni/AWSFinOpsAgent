@@ -1,0 +1,13 @@
+# Code owners — automatically requested for review on matching paths.
+# Docs: https://docs.github.com/articles/about-code-owners
+
+# Default owner for everything in the repo
+*                   @alokkulkarni
+
+# High-sensitivity areas (explicit, same owner — make intent obvious)
+/iam/               @alokkulkarni
+/finops_core/aws/   @alokkulkarni
+/config/            @alokkulkarni
+Dockerfile          @alokkulkarni
+docker-compose*.yml @alokkulkarni
+.github/            @alokkulkarni
