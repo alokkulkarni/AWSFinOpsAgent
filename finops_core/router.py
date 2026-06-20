@@ -56,15 +56,15 @@ class IntentRouter:
         self.session = session
         self.last_usage: Optional[dict] = None  # token/$ of the last in-process agent call
 
-    def _local_agent(self, intent: str):
+    def _local_agent(self, intent: str, hooks=None):
         if intent == "optimize":
             from finops_core.agents.optimize import build_optimize_agent
-            return build_optimize_agent(self.session, self.cfg, callback_handler=None)
+            return build_optimize_agent(self.session, self.cfg, callback_handler=None, hooks=hooks)
         if intent == "anomaly":
             from finops_core.agents.anomaly import build_anomaly_agent
-            return build_anomaly_agent(self.session, self.cfg, callback_handler=None)
+            return build_anomaly_agent(self.session, self.cfg, callback_handler=None, hooks=hooks)
         from finops_core.agents.cost import build_cost_agent
-        return build_cost_agent(self.session, self.cfg, callback_handler=None)
+        return build_cost_agent(self.session, self.cfg, callback_handler=None, hooks=hooks)
 
     def answer(self, question: str) -> tuple[str, str]:
         """Return (intent, answer_text). Uses the remote A2A specialist if its URL is set.
@@ -76,13 +76,18 @@ class IntentRouter:
             from strands.agent.a2a_agent import A2AAgent
             return intent, _text(A2AAgent(endpoint=url)(question))
 
-        result = self._local_agent(intent)(question)
+        from finops_core.hooks import ToolMeter, default_hooks
+        meter = ToolMeter()
+        result = self._local_agent(intent, hooks=default_hooks(self.cfg, meter))(question)
         try:
             from finops_core.models.router import ModelRouter
             from finops_core.pricing import usage_summary
             role = "optimization" if intent == "optimize" else "cost"
             usage = getattr(getattr(result, "metrics", None), "accumulated_usage", None)
-            self.last_usage = usage_summary(ModelRouter(self.cfg).model_id(role), dict(usage or {}))
+            self.last_usage = {
+                **usage_summary(ModelRouter(self.cfg).model_id(role), dict(usage or {})),
+                "tools": meter.summary(),
+            }
         except Exception:
             self.last_usage = None
         return intent, _text(result)

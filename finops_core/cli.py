@@ -511,8 +511,9 @@ def main(argv: Optional[list] = None) -> int:
         print(f"[routed to: {intent}]\n{answer}")
         if router.last_usage:
             u = router.last_usage
+            tools = f" · tools {u['tools']['tool_calls']}" if u.get("tools") else ""
             print(f"\n[tokens in {u['input_tokens']} out {u['output_tokens']} "
-                  f"cacheRead {u['cache_read_tokens']} · est ${u['estimated_usd']}]")
+                  f"cacheRead {u['cache_read_tokens']} · est ${u['estimated_usd']}{tools}]")
         return 0
     if cmd == "fix":
         return _run_fix(args)
