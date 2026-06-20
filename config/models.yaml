@@ -3,10 +3,10 @@
 # region + enabled model access. Verify availability with: make preflight
 #   (or: aws bedrock list-inference-profiles --region <llm-region>)
 roles:
-  orchestrator: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  cost:         us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  optimization: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  sql:          us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  orchestrator: us.anthropic.claude-sonnet-4-6
+  cost:         us.anthropic.claude-sonnet-4-6
+  optimization: us.anthropic.claude-sonnet-4-6
+  sql:          us.anthropic.claude-sonnet-4-6
   digest:       us.amazon.nova-pro-v1:0
 
 # Cheaper/faster fallback used on throttling or to bound cost (Claude Haiku 4.5)
@@ -15,4 +15,13 @@ fallback:
 
 # 0 = most deterministic. Keeps agents relaying exact tool figures (number pass-through).
 temperature: 0
+
+# ALWAYS set max output tokens explicitly — leaving it unset defaults to the model's max and
+# over-reserves Bedrock quota (a common ThrottlingException cause). Our answers are concise.
+max_tokens: 2048
+
+# Bedrock prompt caching: cache the (repeated) system prompt + tool definitions to cut input
+# token cost + latency on Claude. Disable via FINOPS_LLM_CACHE=false.
+cache_prompt: true
+cache_tools: true
 

@@ -41,16 +41,27 @@ class ModelRouter:
 
         Temperature defaults to 0 so the agents relay tool figures deterministically.
         """
-        temperature = self.cfg.llm.temperature
-        if self.cfg.llm.provider == "anthropic":
+        llm = self.cfg.llm
+        if llm.provider == "anthropic":
             from strands.models.anthropic import AnthropicModel  # type: ignore
-            return AnthropicModel(model_id=self.model_id(role), temperature=temperature)
+            return AnthropicModel(
+                model_id=self.model_id(role),
+                temperature=llm.temperature,
+                max_tokens=llm.max_tokens,
+            )
         from strands.models import BedrockModel  # type: ignore
-        return BedrockModel(
-            model_id=self.model_id(role),
-            region_name=self.cfg.llm.region,
-            temperature=temperature,
-        )
+        # max_tokens explicit (quota); cache the system prompt + tool defs (cost/latency).
+        kwargs = {
+            "model_id": self.model_id(role),
+            "region_name": llm.region,
+            "temperature": llm.temperature,
+            "max_tokens": llm.max_tokens,
+        }
+        if llm.cache_prompt:
+            kwargs["cache_prompt"] = "default"
+        if llm.cache_tools:
+            kwargs["cache_tools"] = "default"
+        return BedrockModel(**kwargs)
 
     def preflight(self) -> ModelPreflight:
         notes: list[str] = []

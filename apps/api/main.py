@@ -185,8 +185,9 @@ def report_digest(req: DigestRequest, cfg: Config = Depends(get_config)):
 def query(req: QueryRequest, cfg: Config = Depends(get_config)):
     try:
         from finops_core.router import IntentRouter
-        intent, answer = IntentRouter(cfg, get_session()).answer(req.question)
-        return {"intent": intent, "answer": answer}
+        router = IntentRouter(cfg, get_session())
+        intent, answer = router.answer(req.question)
+        return {"intent": intent, "answer": answer, "usage": router.last_usage}
     except ImportError:
         return {"error": "agent extra not installed (pip install -e '.[agent]')"}
 
