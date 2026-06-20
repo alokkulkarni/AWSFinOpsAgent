@@ -13,6 +13,10 @@ user's local credentials. **Read `SPEC.md` before any non-trivial work** — it'
 - **Read-only by default.** Agent defaults to `advisory` mode. Write actions are opt-in
   (`guarded_write`), allowlisted, dry-run previewed, and require human confirmation.
 - **Numbers must be exact.** Agent answers must match Cost Explorer / CUR — never LLM-estimated.
+- **Test-driven (TDD), always.** Write the test FIRST: add/adjust a test that captures the
+  intended behavior, watch it fail (red), implement until it passes (green), then refactor.
+  Every change ships with tests — a **bugfix starts with a regression test that reproduces the
+  bug**. Run `make test` before every commit; keep the suite green. No change merges test-less.
 
 ## Architecture (one breath)
 One shared **tool layer** (deterministic boto3 wrappers) is exposed BOTH directly to the UI
@@ -37,7 +41,8 @@ Scheduled digest = Strands **Workflow** DAG. Streamlit dashboard + FastAPI over 
 - `make install` · `make preflight` (STS identity + Bedrock check) · `make whoami`
 - `make docker-preflight` · `make sandbox-preflight` · `make dashboard` · `make api`
 
-## Per-task workflow
-1. Branch. 2. Implement + add/adjust tests. 3. Show diff + summary.
-4. Ask to commit. 5. On confirm: commit (with the Co-Authored-By sign-off), open PR.
-6. Merge only on explicit user OK. Update `SPEC.md` when scope changes.
+## Per-task workflow (TDD)
+1. Branch. 2. **Write a failing test** for the behavior/bug (red). 3. Implement until green.
+4. Refactor; run `make test` (+ `make preflight` if AWS touched). 5. Show diff + summary.
+6. Ask to commit. 7. On confirm: commit (Co-Authored-By sign-off), open PR. 8. Merge only on
+explicit user OK. Update `SPEC.md` when scope changes.
