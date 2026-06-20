@@ -18,17 +18,21 @@ def build_optimize_agent(
     tools=None,
     name: str = "Optimization Agent",
     description: Optional[str] = None,
+    hooks=None,
 ):
     """Cost-savings specialist. tools defaults to in-process Optimizer tools; pass MCP-served
     tools to run distributed."""
     from strands import Agent
 
     from finops_core.agents.prompts import OPTIMIZATION_PROMPT
+    from finops_core.hooks import default_hooks
 
     cfg = cfg or Config.load()
     router = router or ModelRouter(cfg, session)
     if tools is None:
         tools = build_optimize_tools(session, cfg)
+    if hooks is None:
+        hooks = default_hooks(cfg)
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
         model=router.for_role("optimization"),
@@ -39,5 +43,6 @@ def build_optimize_agent(
         ),
         system_prompt=OPTIMIZATION_PROMPT,
         tools=tools,
+        hooks=hooks,
         **kwargs,
     )

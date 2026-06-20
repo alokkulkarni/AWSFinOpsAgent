@@ -19,6 +19,7 @@ def build_cost_agent(
     tools=None,
     name: str = "Cost-Analysis Agent",
     description: Optional[str] = None,
+    hooks=None,
 ):
     """Construct the Cost-Analysis agent bound to the resolved model.
 
@@ -30,11 +31,14 @@ def build_cost_agent(
     from strands import Agent  # lazy import: requires the `agent` extra
 
     from finops_core.agents.prompts import COST_ANALYSIS_PROMPT
+    from finops_core.hooks import default_hooks
 
     cfg = cfg or Config.load()
     router = router or ModelRouter(cfg, session)
     if tools is None:
         tools = build_cost_tools(session, cfg)
+    if hooks is None:
+        hooks = default_hooks(cfg)
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
         model=router.for_role("cost"),
@@ -44,5 +48,6 @@ def build_cost_agent(
         ),
         system_prompt=COST_ANALYSIS_PROMPT,
         tools=tools,
+        hooks=hooks,
         **kwargs,
     )

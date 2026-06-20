@@ -444,6 +444,11 @@ secrets in images/logs. **Verified**: full stack runs and answers under the hard
 - **Audit log** for every write action.
 - **Prompt-injection posture:** AWS data is treated as data, not instructions; tools return
   structured results, not free-form commands; the orchestrator cannot execute shell.
+- **Steering & guardrails (delivered):** agent behavior lives in versioned steering files
+  (`finops_core/steering/*.md`); a **ReadOnlyGuard** hook cancels write-shaped tools unless
+  `guarded_write` (defense-in-depth at the tool layer); **structured output** (`FinOpsAnswer`)
+  returns exact figures as typed fields; an optional **Bedrock Guardrail** (PII / prompt-attack,
+  off by default) is wired via `ModelRouter` — see `docs/GUARDRAILS.md` (+ the PII-logging caveat).
 
 ---
 

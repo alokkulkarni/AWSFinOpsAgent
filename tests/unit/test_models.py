@@ -21,6 +21,17 @@ def test_max_tokens_env_override(monkeypatch):
     assert Config.load().llm.max_tokens == 512
 
 
+def test_guardrail_disabled_by_default():
+    assert Config.load().llm.guardrail_id is None
+
+
+def test_guardrail_env_override(monkeypatch):
+    monkeypatch.setenv("FINOPS_GUARDRAIL_ID", "abc123")
+    monkeypatch.setenv("FINOPS_GUARDRAIL_VERSION", "2")
+    llm = Config.load().llm
+    assert llm.guardrail_id == "abc123" and llm.guardrail_version == "2"
+
+
 def test_temperature_env_override(monkeypatch):
     monkeypatch.setenv("FINOPS_LLM_TEMPERATURE", "0.4")
     assert Config.load().llm.temperature == 0.4

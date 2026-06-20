@@ -1,4 +1,28 @@
-from finops_core.modes import MODES, can_apply_actions, can_generate_artifacts, normalize_mode
+from finops_core.modes import (
+    MODES,
+    can_apply_actions,
+    can_generate_artifacts,
+    is_write_tool,
+    normalize_mode,
+    tool_blocked,
+)
+
+
+def test_is_write_tool():
+    assert is_write_tool("apply_guarded_action")
+    assert is_write_tool("delete_ebs_snapshot")
+    assert is_write_tool("create_budget")
+    assert not is_write_tool("get_cost_by_service")
+    assert not is_write_tool("drill_down")
+
+
+def test_tool_blocked_by_mode():
+    # write-shaped tool blocked unless guarded_write
+    assert tool_blocked("apply_x", "advisory") is True
+    assert tool_blocked("apply_x", "artifacts") is True
+    assert tool_blocked("apply_x", "guarded_write") is False
+    # read tools never blocked
+    assert tool_blocked("get_cost_by_service", "advisory") is False
 
 
 def test_modes_order():

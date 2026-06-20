@@ -33,6 +33,9 @@ finops = "finops_core.cli:main"
 [tool.setuptools.packages.find]
 include = ["finops_core*", "apps*"]
 
+[tool.setuptools.package-data]
+finops_core = ["steering/*.md"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
