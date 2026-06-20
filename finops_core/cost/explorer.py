@@ -43,7 +43,11 @@ class CostExplorer:
         cache: Optional[TTLCache] = None,
     ):
         self.cfg = cfg or Config()
-        # ce_client injectable for tests (botocore Stubber)
+        # ce_client injectable for tests (botocore Stubber). Otherwise build a session lazily
+        # if none was provided, so CostExplorer(cfg=...) works standalone (e.g. in MCP servers).
+        if ce_client is None and session is None:
+            from finops_core.aws.session import build_session
+            session = build_session(self.cfg)
         self.client = ce_client or client(session, "ce", region=self.cfg.aws.ce_region)
         self.cache = cache if cache is not None else TTLCache(self.cfg.cache_ttl_seconds)
 

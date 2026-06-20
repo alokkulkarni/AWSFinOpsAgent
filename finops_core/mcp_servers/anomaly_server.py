@@ -10,12 +10,14 @@ import os
 from mcp.server import FastMCP
 
 from finops_core.anomaly.engine import AnomalyEngine
+from finops_core.aws.session import build_session
 from finops_core.config import Config
 from finops_core.cost.explorer import CostExplorer
 
 _cfg = Config.load()
-_eng = AnomalyEngine(cfg=_cfg)
-_ce = CostExplorer(cfg=_cfg)
+_session = build_session(_cfg)
+_eng = AnomalyEngine(_session, _cfg)
+_ce = CostExplorer(_session, _cfg)
 
 mcp = FastMCP(
     "finops-anomaly-tools",
