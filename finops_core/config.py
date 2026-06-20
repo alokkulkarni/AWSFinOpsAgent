@@ -62,6 +62,9 @@ class LlmConfig:
     roles: dict = field(default_factory=dict)
     fallback: list = field(default_factory=list)
     temperature: float = 0.0         # 0 = most deterministic (exact-number relay)
+    max_tokens: int = 2048           # ALWAYS explicit — unset over-reserves Bedrock quota
+    cache_prompt: bool = True        # Bedrock prompt caching (system prompt)
+    cache_tools: bool = True         # Bedrock prompt caching (tool definitions)
 
 
 @dataclass
@@ -116,6 +119,9 @@ class Config:
             roles=merged_roles,
             fallback=list(llm.get("fallback") or models.get("fallback") or []),
             temperature=float(llm.get("temperature", models.get("temperature", cfg.llm.temperature))),
+            max_tokens=int(llm.get("max_tokens", models.get("max_tokens", cfg.llm.max_tokens))),
+            cache_prompt=bool(llm.get("cache_prompt", models.get("cache_prompt", cfg.llm.cache_prompt))),
+            cache_tools=bool(llm.get("cache_tools", models.get("cache_tools", cfg.llm.cache_tools))),
         )
 
         g = data.get("guardrails") or {}
@@ -152,6 +158,10 @@ class Config:
         self.llm.region = os.getenv("FINOPS_LLM_REGION", self.llm.region)
         if os.getenv("FINOPS_LLM_TEMPERATURE"):
             self.llm.temperature = float(os.environ["FINOPS_LLM_TEMPERATURE"])
+        if os.getenv("FINOPS_LLM_MAX_TOKENS"):
+            self.llm.max_tokens = int(os.environ["FINOPS_LLM_MAX_TOKENS"])
+        self.llm.cache_prompt = _env_bool("FINOPS_LLM_CACHE", self.llm.cache_prompt)
+        self.llm.cache_tools = _env_bool("FINOPS_LLM_CACHE", self.llm.cache_tools)
         for role in ("orchestrator", "cost", "optimization", "sql", "digest"):
             override = os.getenv(f"FINOPS_MODEL_{role.upper()}")
             if override:

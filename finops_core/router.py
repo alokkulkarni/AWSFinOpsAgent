@@ -54,6 +54,7 @@ class IntentRouter:
     def __init__(self, cfg: Optional[Config] = None, session=None):
         self.cfg = cfg or Config.load()
         self.session = session
+        self.last_usage: Optional[dict] = None  # token/$ of the last in-process agent call
 
     def _local_agent(self, intent: str):
         if intent == "optimize":
@@ -66,10 +67,22 @@ class IntentRouter:
         return build_cost_agent(self.session, self.cfg, callback_handler=None)
 
     def answer(self, question: str) -> tuple[str, str]:
-        """Return (intent, answer_text). Uses the remote A2A specialist if its URL is set."""
+        """Return (intent, answer_text). Uses the remote A2A specialist if its URL is set.
+        For in-process calls, records token/$ usage in self.last_usage."""
         intent = classify(question)
+        self.last_usage = None
         url = os.getenv(_ENV[intent])
         if url:
             from strands.agent.a2a_agent import A2AAgent
             return intent, _text(A2AAgent(endpoint=url)(question))
-        return intent, _text(self._local_agent(intent)(question))
+
+        result = self._local_agent(intent)(question)
+        try:
+            from finops_core.models.router import ModelRouter
+            from finops_core.pricing import usage_summary
+            role = "optimization" if intent == "optimize" else "cost"
+            usage = getattr(getattr(result, "metrics", None), "accumulated_usage", None)
+            self.last_usage = usage_summary(ModelRouter(self.cfg).model_id(role), dict(usage or {}))
+        except Exception:
+            self.last_usage = None
+        return intent, _text(result)

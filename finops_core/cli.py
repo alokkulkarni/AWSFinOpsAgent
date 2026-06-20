@@ -424,7 +424,18 @@ def _run_ask(args) -> int:
         print(f"[error] could not build agent: {e}")
         return 2
 
-    print(_result_text(agent(args.question)))
+    result = agent(args.question)
+    print(_result_text(result))
+    try:
+        from finops_core.models.router import ModelRouter
+        from finops_core.pricing import usage_summary
+        usage = getattr(getattr(result, "metrics", None), "accumulated_usage", None)
+        if usage:
+            u = usage_summary(ModelRouter(cfg).model_id("cost"), dict(usage))
+            print(f"\n[tokens in {u['input_tokens']} out {u['output_tokens']} "
+                  f"cacheRead {u['cache_read_tokens']} · est ${u['estimated_usd']}]")
+    except Exception:
+        pass
     return 0
 
 
@@ -492,11 +503,16 @@ def main(argv: Optional[list] = None) -> int:
         from finops_core.router import IntentRouter
         cfg = Config.load(args.config)
         try:
-            intent, answer = IntentRouter(cfg, build_session(cfg)).answer(args.question)
+            router = IntentRouter(cfg, build_session(cfg))
+            intent, answer = router.answer(args.question)
         except ImportError:
             print("[error] routing needs Strands: pip install -e '.[agent]'")
             return 2
         print(f"[routed to: {intent}]\n{answer}")
+        if router.last_usage:
+            u = router.last_usage
+            print(f"\n[tokens in {u['input_tokens']} out {u['output_tokens']} "
+                  f"cacheRead {u['cache_read_tokens']} · est ${u['estimated_usd']}]")
         return 0
     if cmd == "fix":
         return _run_fix(args)

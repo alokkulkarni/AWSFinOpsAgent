@@ -16,3 +16,12 @@ fallback:
 # 0 = most deterministic. Keeps agents relaying exact tool figures (number pass-through).
 temperature: 0
 
+# ALWAYS set max output tokens explicitly — leaving it unset defaults to the model's max and
+# over-reserves Bedrock quota (a common ThrottlingException cause). Our answers are concise.
+max_tokens: 2048
+
+# Bedrock prompt caching: cache the (repeated) system prompt + tool definitions to cut input
+# token cost + latency on Claude. Disable via FINOPS_LLM_CACHE=false.
+cache_prompt: true
+cache_tools: true
+
