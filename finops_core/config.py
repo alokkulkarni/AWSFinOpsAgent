@@ -65,6 +65,9 @@ class LlmConfig:
     max_tokens: int = 2048           # ALWAYS explicit — unset over-reserves Bedrock quota
     cache_prompt: bool = True        # Bedrock prompt caching (system prompt)
     cache_tools: bool = True         # Bedrock prompt caching (tool definitions)
+    guardrail_id: Optional[str] = None       # Bedrock Guardrail (PII / denied topics); off by default
+    guardrail_version: str = "DRAFT"
+    guardrail_trace: str = "enabled"
 
 
 @dataclass
@@ -122,6 +125,9 @@ class Config:
             max_tokens=int(llm.get("max_tokens", models.get("max_tokens", cfg.llm.max_tokens))),
             cache_prompt=bool(llm.get("cache_prompt", models.get("cache_prompt", cfg.llm.cache_prompt))),
             cache_tools=bool(llm.get("cache_tools", models.get("cache_tools", cfg.llm.cache_tools))),
+            guardrail_id=llm.get("guardrail_id", cfg.llm.guardrail_id),
+            guardrail_version=str(llm.get("guardrail_version", cfg.llm.guardrail_version)),
+            guardrail_trace=llm.get("guardrail_trace", cfg.llm.guardrail_trace),
         )
 
         g = data.get("guardrails") or {}
@@ -162,6 +168,9 @@ class Config:
             self.llm.max_tokens = int(os.environ["FINOPS_LLM_MAX_TOKENS"])
         self.llm.cache_prompt = _env_bool("FINOPS_LLM_CACHE", self.llm.cache_prompt)
         self.llm.cache_tools = _env_bool("FINOPS_LLM_CACHE", self.llm.cache_tools)
+        self.llm.guardrail_id = os.getenv("FINOPS_GUARDRAIL_ID", self.llm.guardrail_id)
+        self.llm.guardrail_version = os.getenv("FINOPS_GUARDRAIL_VERSION", self.llm.guardrail_version)
+        self.llm.guardrail_trace = os.getenv("FINOPS_GUARDRAIL_TRACE", self.llm.guardrail_trace)
         for role in ("orchestrator", "cost", "optimization", "sql", "digest"):
             override = os.getenv(f"FINOPS_MODEL_{role.upper()}")
             if override:

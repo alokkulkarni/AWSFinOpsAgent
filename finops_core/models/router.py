@@ -61,6 +61,10 @@ class ModelRouter:
             kwargs["cache_prompt"] = "default"
         if llm.cache_tools:
             kwargs["cache_tools"] = "default"
+        if llm.guardrail_id:  # Bedrock Guardrail (PII / denied topics), opt-in
+            kwargs["guardrail_id"] = llm.guardrail_id
+            kwargs["guardrail_version"] = llm.guardrail_version
+            kwargs["guardrail_trace"] = llm.guardrail_trace
         return BedrockModel(**kwargs)
 
     def preflight(self) -> ModelPreflight:
