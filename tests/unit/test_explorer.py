@@ -1,8 +1,20 @@
+from unittest.mock import MagicMock
+
 import boto3
 import pytest
 from botocore.stub import Stubber
 
+from finops_core.config import Config
 from finops_core.cost.explorer import CostExplorer
+
+
+def test_cost_explorer_builds_session_when_none(monkeypatch):
+    """Regression: CostExplorer(cfg=...) with no session must build one (not crash on None)."""
+    import finops_core.aws.session as sess
+    fake_session = MagicMock()
+    monkeypatch.setattr(sess, "build_session", lambda cfg: fake_session)
+    ce = CostExplorer(cfg=Config())
+    assert ce.client is fake_session.client.return_value
 
 
 @pytest.fixture
