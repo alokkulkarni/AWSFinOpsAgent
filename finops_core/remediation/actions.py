@@ -116,8 +116,9 @@ class RemediationEngine:
         return self._client("sts").get_caller_identity()["Account"]
 
     def _require_guarded(self):
-        if self.cfg.mode != "guarded_write":
-            raise ModeError(f"guarded actions require FINOPS_MODE=guarded_write (current: {self.cfg.mode})")
+        from finops_core.modes import can_apply_actions
+        if not can_apply_actions(self.cfg.mode):
+            raise ModeError(f"guarded actions require guarded_write mode (current: {self.cfg.mode})")
 
     def list_actions(self) -> list[ActionSpec]:
         return [ActionSpec(aid, meta[0], meta[1]) for aid, meta in ALLOWLIST.items()]

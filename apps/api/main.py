@@ -194,8 +194,9 @@ def query(req: QueryRequest, cfg: Config = Depends(get_config)):
 # ---- remediation (mode-gated) ---------------------------------------------
 @app.post("/fix")
 def fix(req: FixRequest, cfg: Config = Depends(get_config)):
-    if cfg.mode == "advisory":
-        raise HTTPException(403, "artifact generation needs FINOPS_MODE=artifacts or guarded_write")
+    from finops_core.modes import can_generate_artifacts
+    if not can_generate_artifacts(cfg.mode):
+        raise HTTPException(403, "artifact generation needs artifacts or guarded_write mode")
     from finops_core.remediation.artifacts import generate_artifact
     return generate_artifact(req.finding, req.format).to_dict()
 

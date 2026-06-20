@@ -330,8 +330,9 @@ def _run_fix(args) -> int:
     from finops_core.remediation.artifacts import generate_artifact
 
     cfg = Config.load(args.config)
-    if cfg.mode == "advisory":
-        print("[error] artifact generation needs FINOPS_MODE=artifacts or guarded_write "
+    from finops_core.modes import can_generate_artifacts
+    if not can_generate_artifacts(cfg.mode):
+        print("[error] artifact generation needs artifacts or guarded_write mode "
               f"(current: {cfg.mode})")
         return 2
     if args.finding_json:
