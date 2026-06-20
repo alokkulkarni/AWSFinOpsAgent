@@ -24,8 +24,20 @@ from apps.dashboard.data import (  # noqa: E402
     breadcrumb_to_query,
 )
 from finops_core.config import Config  # noqa: E402
+from finops_core.modes import (  # noqa: E402
+    MODES,
+    can_apply_actions,
+    can_generate_artifacts,
+)
 
 st.set_page_config(page_title="AWS FinOps Agent", page_icon="💰", layout="wide")
+
+
+def mode_cfg() -> Config:
+    """Config with the action mode chosen in the sidebar (runtime override, no restart)."""
+    c = Config.load()
+    c.mode = st.session_state.get("mode", c.mode)
+    return c
 
 PERIODS = ["mtd", "last_month", "ytd", "30d", "90d", "3m", "6m", "12m"]
 METRICS = ["UnblendedCost", "AmortizedCost", "NetAmortizedCost", "NetUnblendedCost"]
@@ -68,8 +80,21 @@ with st.sidebar:
     metric = st.selectbox("Metric", METRICS, index=0)
     top_n = st.slider("Top N", 5, 30, 12)
     cfg = Config.load()
-    st.caption(f"mode: `{cfg.mode}` · region: `{cfg.aws.ce_region}` · model: `{cfg.llm.provider}`")
-    st.caption("Numbers are pulled directly from Cost Explorer (deterministic).")
+    _default_mode = cfg.mode if cfg.mode in MODES else "advisory"
+    if "mode" not in st.session_state:
+        st.session_state["mode"] = _default_mode
+    mode = st.selectbox(
+        "Action mode", MODES, index=MODES.index(st.session_state["mode"]), key="mode_select",
+        help="advisory: read-only · artifacts: generate fix scripts · "
+             "guarded_write: apply allowlisted, confirmed actions",
+    )
+    st.session_state["mode"] = mode
+    if mode == "guarded_write":
+        st.warning("guarded_write can modify your AWS account (allowlisted + confirmed).")
+    elif mode == "artifacts":
+        st.info("artifacts: fix scripts are generated for review — never executed.")
+    st.caption(f"region: `{cfg.aws.ce_region}` · model: `{cfg.llm.provider}`")
+    st.caption("Cost numbers are pulled directly from Cost Explorer (deterministic).")
 
 # ---- KPI row ---------------------------------------------------------------
 st.title("AWS Cost Overview")
@@ -179,6 +204,17 @@ try:
         with st.expander("Coverage notes (unavailable / not-enrolled sources)"):
             for n in rep["notes"]:
                 st.write(f"• {n}")
+    # Fix-script generation (artifacts / guarded_write mode)
+    if rep["recommendations"] and can_generate_artifacts(st.session_state.get("mode", "advisory")):
+        with st.expander("🔧 Generate a fix script (review — never auto-run)"):
+            recs = rep["recommendations"]
+            idx = st.selectbox("Finding", list(range(len(recs))),
+                               format_func=lambda i: recs[i]["title"])
+            fmt = st.radio("Format", ["cli", "terraform"], horizontal=True)
+            if st.button("Generate fix"):
+                from finops_core.remediation.artifacts import generate_artifact
+                art = generate_artifact(recs[idx], fmt)
+                st.code(art.content, language="bash" if fmt == "cli" else "hcl")
 except Exception as e:
     st.caption(f"(optimization unavailable: {e})")
 
@@ -222,6 +258,42 @@ try:
             st.caption(f"• {n}")
 except Exception as e:
     st.caption(f"(anomalies/budgets unavailable: {e})")
+
+# ---- guarded actions (mode-gated; can modify AWS) --------------------------
+st.subheader("Guarded actions")
+_mode = st.session_state.get("mode", "advisory")
+if not can_apply_actions(_mode):
+    st.caption("Switch **Action mode** to `guarded_write` in the sidebar to preview and apply "
+               "allowlisted actions (create budget / anomaly monitor, enable optimizers, …).")
+else:
+    from finops_core.remediation.actions import RemediationEngine
+
+    _eng = RemediationEngine(mode_cfg())
+    _specs = _eng.list_actions()
+    _labels = {a.action_id: f"{a.title}  [{a.risk}]" for a in _specs}
+    aid = st.selectbox("Action", [a.action_id for a in _specs], format_func=lambda x: _labels[x])
+    params_raw = st.text_input("Params (JSON)", value="{}",
+                               help='e.g. {"name": "finops-monthly", "limit": 100}')
+    if st.button("Preview"):
+        import json as _json
+        try:
+            spec = _eng.preview(aid, _json.loads(params_raw or "{}"))
+            st.session_state["pending_action"] = {
+                "action_id": aid, "token": spec.confirmation_token,
+                "preview": spec.preview, "params": spec.params,
+            }
+        except Exception as e:
+            st.error(f"preview failed: {e}")
+    pa = st.session_state.get("pending_action")
+    if pa and pa["action_id"] == aid:
+        st.info(f"Would: {pa['preview']}")
+        confirm = st.checkbox("I confirm this change to my AWS account")
+        if st.button("Apply", disabled=not confirm):
+            res = _eng.apply(pa["action_id"], pa["token"], pa["params"])
+            (st.success if res.status == "applied" else st.error)(f"[{res.status}] {res.detail}")
+            if res.audit_id:
+                st.caption(f"audit: {res.audit_id}")
+            st.session_state.pop("pending_action", None)
 
 # ---- chat (narrative only; numbers above are authoritative) ---------------
 st.subheader("Ask the FinOps agent")
