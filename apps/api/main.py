@@ -68,6 +68,7 @@ class DrillRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     question: str
+    structured: bool = False   # return typed figures (FinOpsAnswer) instead of prose
 
 
 class DigestRequest(BaseModel):
@@ -186,6 +187,10 @@ def query(req: QueryRequest, cfg: Config = Depends(get_config)):
     try:
         from finops_core.router import IntentRouter
         router = IntentRouter(cfg, get_session())
+        if req.structured:
+            intent, ans = router.structured_answer(req.question)
+            payload = ans.model_dump() if hasattr(ans, "model_dump") else ans
+            return {"intent": intent, "structured": payload, "usage": router.last_usage}
         intent, answer = router.answer(req.question)
         return {"intent": intent, "answer": answer, "usage": router.last_usage}
     except ImportError:

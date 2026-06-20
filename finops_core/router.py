@@ -79,6 +79,30 @@ class IntentRouter:
         from finops_core.hooks import ToolMeter, default_hooks
         meter = ToolMeter()
         result = self._local_agent(intent, hooks=default_hooks(self.cfg, meter))(question)
+        self._record_usage(result, intent, meter)
+        return intent, _text(result)
+
+    def structured_answer(self, question: str):
+        """Return (intent, FinOpsAnswer | dict) — figures as typed fields (exact, from tools).
+        In-process only; a remote A2A specialist returns text wrapped in a headline."""
+        from finops_core.schemas.answer import FinOpsAnswer
+
+        intent = classify(question)
+        self.last_usage = None
+        url = os.getenv(_ENV[intent])
+        if url:
+            from strands.agent.a2a_agent import A2AAgent
+            return intent, {"headline": _text(A2AAgent(endpoint=url)(question)),
+                            "figures": [], "remote": True}
+
+        from finops_core.hooks import ToolMeter, default_hooks
+        meter = ToolMeter()
+        result = self._local_agent(intent, hooks=default_hooks(self.cfg, meter))(
+            question, structured_output_model=FinOpsAnswer)
+        self._record_usage(result, intent, meter)
+        return intent, result.structured_output
+
+    def _record_usage(self, result, intent: str, meter) -> None:
         try:
             from finops_core.models.router import ModelRouter
             from finops_core.pricing import usage_summary
@@ -90,4 +114,3 @@ class IntentRouter:
             }
         except Exception:
             self.last_usage = None
-        return intent, _text(result)
