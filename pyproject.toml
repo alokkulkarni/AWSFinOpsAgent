@@ -31,7 +31,7 @@ dev = ["pytest>=8.0", "moto>=5.0", "ruff>=0.4"]
 finops = "finops_core.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["finops_core*"]
+include = ["finops_core*", "apps*"]
 
 [tool.ruff]
 line-length = 100

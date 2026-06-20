@@ -7,11 +7,23 @@ Run: streamlit run apps/dashboard/app.py   (or: make dashboard)
 """
 from __future__ import annotations
 
-import pandas as pd
-import streamlit as st
+import sys
+from pathlib import Path
 
-from apps.dashboard.data import DRILL_ORDER, CostDashboardData, DrillLevel, breadcrumb_to_query
-from finops_core.config import Config
+# `streamlit run` puts THIS file's directory on sys.path (not the repo root), so `import apps...`
+# would fail. Add the repo root so the dashboard launches the same way everywhere.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import pandas as pd  # noqa: E402
+import streamlit as st  # noqa: E402
+
+from apps.dashboard.data import (  # noqa: E402
+    DRILL_ORDER,
+    CostDashboardData,
+    DrillLevel,
+    breadcrumb_to_query,
+)
+from finops_core.config import Config  # noqa: E402
 
 st.set_page_config(page_title="AWS FinOps Agent", page_icon="💰", layout="wide")
 
