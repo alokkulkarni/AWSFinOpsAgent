@@ -97,7 +97,10 @@ uses a `DevOpsReadOnly` role per member (ship the policy + a setup script, like 
 - A top-level **product selector** (FinOps | DevOps) in the Streamlit app (sidebar/radio); the
   page renders the chosen product. DevOps page: estate KPIs (accounts/regions/services/resource
   counts), the **diagram** (PNG/SVG + a download for the `.drawio`), an inventory table with
-  filters, and a chat panel routed to the DevOps agent.
+  filters, a **review & debug action panel** (pick a resource from the scanned estate → **🔍 Review**
+  / **🩺 Diagnose** buttons — the deterministic fast-path straight to the tool layer, no LLM; fix
+  posture follows the sidebar Action mode), and a chat panel routed to the DevOps agent (which can
+  also draw/review/diagnose).
 - FastAPI gains `/estate/*` (summary, resources, topology), `/diagram` (drawio/png/svg), and
   `/query` already routes by intent.
 

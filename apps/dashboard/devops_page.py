@@ -56,6 +56,49 @@ def _render_chat_diagram(d: dict, key: str):
                                     key=f"dl_{fmt}_{key}")
 
 
+_SEV_ICON = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵", "info": "⚪"}
+_CONF_ICON = {"high": "🟢", "medium": "🟡", "low": "⚪"}
+
+
+def _render_review_result(res: dict):
+    by = res.get("by_severity") or {}
+    head = "  ".join(f"{_SEV_ICON.get(s, '')} {n} {s}" for s, n in by.items()) or "none"
+    st.markdown(f"**{res['finding_count']} finding(s)** — {head}")
+    for f in res["findings"]:
+        with st.container(border=True):
+            st.markdown(f"{_SEV_ICON.get(f['severity'], '')} **{f['title']}**  · `{f['category']}`")
+            st.markdown(f"`{f['current']}`  →  **{f['recommended']}**")
+            st.caption(f["rationale"])
+            if f.get("doc_url"):
+                st.markdown(f"[AWS docs]({f['doc_url']})")
+    for n in res.get("notes", []):
+        st.caption(f"• {n}")
+
+
+def _render_diagnose_result(res: dict):
+    s = res.get("signals", {})
+    st.markdown(f"signals: **{len(s.get('alarms', []))}** alarm(s) · "
+                f"**{len(s.get('log_errors', []))}** error log line(s) · "
+                f"**{len(s.get('recent_changes', []))}** recent change(s) — posture **{res['mode']}**")
+    if res.get("healthy"):
+        st.success("✓ No active fault detected in the inspected window.")
+    for h in res["hypotheses"]:
+        with st.container(border=True):
+            st.markdown(f"{_CONF_ICON.get(h['confidence'], '')} **{h['cause']}**  · "
+                        f"{h['confidence']} confidence")
+            for ev in h["evidence"][:4]:
+                st.caption(f"• {ev}")
+            st.markdown(f"**Fix:** {h['fix']}")
+            if h.get("fix_command"):
+                st.code(h["fix_command"], language="bash")
+            if h.get("apply"):
+                st.warning(h["apply"])
+            if h.get("doc_url"):
+                st.markdown(f"[AWS docs]({h['doc_url']})")
+    for n in res.get("notes", []):
+        st.caption(f"• {n}")
+
+
 def render():
     from devops_core.diagram.drawio import build_drawio
     from devops_core.diagram.svg import build_svg
@@ -101,6 +144,48 @@ def render():
         "region": r["region"], "name": r.get("name"),
     } for r in rows[:500]]), width="stretch", hide_index=True)
     st.caption(f"{len(rows)} resources" + (" (showing first 500)" if len(rows) > 500 else ""))
+
+    st.subheader("🔍 Review & 🩺 debug a resource")
+    st.caption("Deterministic fast-path (no LLM): best-practice review (config/sizing/metrics, "
+               "Lambda also code) or fault diagnosis (alarms/logs/CloudTrail). Fix posture follows "
+               "the sidebar Action mode.")
+    from apps.dashboard.resource_select import resource_choices
+    reviewable = [s for s in ("lambda", "ec2", "rds", "s3") if s in d["by_service"]] \
+        or ["lambda", "ec2", "rds", "s3"]
+    pc1, pc2 = st.columns([1, 3])
+    rv_svc = pc1.selectbox("Service", reviewable, key="rv_service")
+    choices = resource_choices(d["resources"], rv_svc)
+    chosen = None
+    if choices:
+        labels = [c["label"] for c in choices]
+        pick = pc2.selectbox(f"Resource ({len(choices)})", labels, key="rv_resource")
+        chosen = choices[labels.index(pick)]
+    else:
+        manual = pc2.text_input(f"No {rv_svc} resources scanned — enter a name or ARN",
+                                key="rv_manual")
+        if manual.strip():
+            chosen = {"service": rv_svc, "id": manual.strip(), "region": None}
+
+    posture = st.session_state.get("mode", "advisory")
+    b1, b2, _ = st.columns([1, 1, 3])
+    do_review = b1.button("🔍 Review", disabled=chosen is None)
+    do_diag = b2.button("🩺 Diagnose", disabled=chosen is None)
+    if chosen and (do_review or do_diag):
+        region = chosen.get("region")
+        try:
+            if do_review:
+                from devops_core.review.engine import review_service
+                with st.spinner(f"Reviewing {chosen['id']}…"):
+                    _render_review_result(
+                        review_service(chosen["service"], chosen["id"], region=region).to_dict(limit=15))
+            else:
+                from devops_core.diagnose.engine import diagnose_service
+                with st.spinner(f"Diagnosing {chosen['id']}…"):
+                    _render_diagnose_result(
+                        diagnose_service(chosen["service"], chosen["id"], region=region,
+                                         mode=posture).to_dict())
+        except Exception as e:
+            st.error(f"Failed: {e}")
 
     st.subheader("Ask about the estate")
     st.caption("Inventory above is exact (tool layer); the agent explains, explores, and draws.")
