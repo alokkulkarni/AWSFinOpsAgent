@@ -110,7 +110,7 @@ uses a `DevOpsReadOnly` role per member (ship the policy + a setup script, like 
 | **4. Frontend product selector** | FinOps\|DevOps selector; DevOps dashboard page (KPIs + diagram + inventory + chat); `/estate` + `/diagram` API | Journey: pick DevOps → see estate + diagram + ask — ✅ **Done**: sidebar product selector; DevOps page (KPIs, AWS-icon SVG diagram + .drawio download, filtered inventory, estate chat); verified via AppTest |
 | **5. Org fan-out** | assume-role per member; per-account inventory + cross-account topology; `DevOpsReadOnly` policy/script | Multi-account estate map — ✅ **Done**: `scan --org`/`--role-name`, EstateScanner fan-out (assume member role, scan, dedup, graceful notes) + `iam/devops-readonly-policy.json` + setup script. Verified live (mgmt mapped; CT security accounts blocked → noted) |
 | **6. Comprehensive coverage + topology** | more services + relationship edges (peering/TGW/endpoints/targets) | Network topology rendered — ✅ **Done**: TopologyScanner (VPC→subnet→instance, IGW/NAT/endpoints, peering) + nested `.drawio` (color-coded public/private subnets, IGW icons, peering edges) + `devops topology` + `get_topology` tool; verified live (3 VPCs / 8 subnets, rendered) |
-| **7. Hardening** | sandbox, IAM, accuracy/inventory tests, observability | Sandbox run + green tests |
+| **7. Hardening** | sandbox, IAM, accuracy/inventory tests, observability | Sandbox run + green tests — ✅ **Done**: devops tier verified under the hardened sandbox (read-only FS, caps dropped) answering queries; `docs/DEVOPS_IAM.md` (read-only + fan-out role); inventory-consistency tests; 99 tests pass |
 
 ## 10. Conventions
 Same as `CLAUDE.md`: read-only by default; TDD (failing test first); every change a PR; no
