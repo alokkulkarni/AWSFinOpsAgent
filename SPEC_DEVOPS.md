@@ -111,6 +111,48 @@ uses a `DevOpsReadOnly` role per member (ship the policy + a setup script, like 
 | **5. Org fan-out** | assume-role per member; per-account inventory + cross-account topology; `DevOpsReadOnly` policy/script | Multi-account estate map — ✅ **Done**: `scan --org`/`--role-name`, EstateScanner fan-out (assume member role, scan, dedup, graceful notes) + `iam/devops-readonly-policy.json` + setup script. Verified live (mgmt mapped; CT security accounts blocked → noted) |
 | **6. Comprehensive coverage + topology** | more services + relationship edges (peering/TGW/endpoints/targets) | Network topology rendered — ✅ **Done**: TopologyScanner (VPC→subnet→instance, IGW/NAT/endpoints, peering) + nested `.drawio` (color-coded public/private subnets, IGW icons, peering edges) + `devops topology` + `get_topology` tool; verified live (3 VPCs / 8 subnets, rendered) |
 | **7. Hardening** | sandbox, IAM, accuracy/inventory tests, observability | Sandbox run + green tests — ✅ **Done**: devops tier verified under the hardened sandbox (read-only FS, caps dropped) answering queries; `docs/DEVOPS_IAM.md` (read-only + fan-out role); inventory-consistency tests; 99 tests pass |
+| **8. Diagram-on-request** | chat → `draw_diagram` tool (**data-driven** scope from the real estate **or freeform** agent-authored mxGraph per the draw.io skill) → render **PNG/SVG** → surfaced + **downloadable** in the dashboard | Ask "draw me X" in chat → image renders + `.drawio`/`.png`/`.svg` download — ✅ **Done**: `draw_diagram` (estate/topology/vpc/account/service scopes + freeform mxGraph), `builder` + `registry`, dashboard renders SVG inline + 3 downloads; verified live (LLM chose the tool, rendered SVG+PNG); 107 tests |
+| **9. Service review & optimization** | `review/` framework: per-service reviewers (live **config + sizing + CloudWatch metrics** + best-practice **RULES**; **Lambda also code** via the lambda-audit skills) → prioritized, **AWS-doc-cited** recommendations; `review_service` tool + `devops review` CLI | "review my lambda `<name>`" → cited findings (config/sizing/code) |
+| **10. Fault debugging** | `diagnose_service`: config + CloudWatch **metrics/alarms** + recent **Logs** errors + recent **CloudTrail** changes → validate current state → suggest fix; **3 postures** (advisory / artifacts / guarded-write) **user-selectable on the frontend** | "why is `<resource>` failing?" → root-cause + fix in the chosen posture |
+
+## 11. DevOps operations (Phases 8–10)
+Extends the read-only estate agent into **operations**: diagram-on-request, per-service review/
+optimization, and fault debugging. Same rules — read-only by default, exact data from tools, the
+LLM narrates; writes only via the existing **modes** (`advisory` → `artifacts` → `guarded_write`).
+
+### 11.1 Diagram-on-request (Phase 8)
+A `draw_diagram` **tool** the agent calls from chat (named `draw_*`, not `create_*`, so the
+`ReadOnlyGuard` write-prefix heuristic never false-blocks this AWS-read-only, local-artifact tool):
+- **Data-driven** — `scope` in {`estate`, `topology`, `vpc:<id>`, `account:<id>`, `service:<svc>`}
+  builds the `.drawio` from the **real scanned estate/topology** (reuses `build_drawio` /
+  `build_topology_drawio`). Grounded in actual resources.
+- **Freeform** — the agent **authors valid `mxGraphModel` XML** (AWS4 shapes, per the draw.io
+  skill) and passes it as `drawio_xml`; the tool validates well-formedness, writes, renders.
+- **Render** → `.svg` (+`.png` when the draw.io CLI is present; self-contained SVG fallback for
+  data-driven). Returns `{drawio, svg, png, svg_content}`.
+- **Surfacing** — the tool records the artifact in an in-process `diagram.registry` (the large SVG
+  never round-trips the LLM — only a compact path summary does); the dashboard chat reads it after
+  the turn, renders the SVG inline, and offers `.drawio`/`.png`/`.svg` **downloads**.
+
+### 11.2 Service review & optimization (Phase 9)
+`review/` framework — `review_service(service, resource_id)`:
+- **Reviewers** per service (Lambda, EC2, RDS, S3, ECS, … + a **generic** fallback) read **live
+  config + sizing + CloudWatch metrics** (read-only) and run curated **best-practice RULES**
+  (severity, current vs recommended, **AWS-doc link**). Lambda also **fetches & analyzes code**
+  (deployment package) via the `lambda-performance-audit` / `lambda-security-audit` skills.
+- **Grounding** = deterministic rules + **LLM narrative** that explains/prioritizes and cites the
+  rule/doc — accurate, no heavy RAG. Output is **bounded** (top-N findings) to control tokens.
+- Surfaces: `review_service` tool, `devops review <service> <id>` CLI, dashboard action.
+
+### 11.3 Fault debugging (Phase 10)
+`diagnose_service(service, resource_id)` — **validate-then-fix**:
+- **Signals**: live **config**, **CloudWatch** metrics/alarms, recent **Logs** error patterns,
+  recent **CloudTrail** changes (what changed lately). Correlates into a **root-cause** + a fix.
+- **Action posture** (reuses `finops_core.modes`, **user-selectable on the frontend**):
+  `advisory` (suggest), `artifacts` (generate fix script/IaC, never run), `guarded_write`
+  (allowlisted, confirmed, audited apply). Default `advisory`.
+- IAM: read-only diagnosis adds `cloudwatch:Get*/Describe*`, `logs:FilterLogEvents/Get*`,
+  `cloudtrail:LookupEvents` to the read-only policy; guarded apply needs scoped write per action.
 
 ## 10. Conventions
 Same as `CLAUDE.md`: read-only by default; TDD (failing test first); every change a PR; no

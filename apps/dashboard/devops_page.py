@@ -23,10 +23,31 @@ def _scan(regions_tuple):
 def _agent(regions_tuple):
     from devops_core.agents.estate import build_estate_agent
     from devops_core.discovery.index import EstateIndex
+    from devops_core.tools.diagram_tool import build_diagram_tools
     from devops_core.tools.estate import build_estate_tools
     idx = EstateIndex(estate=_scan(regions_tuple))           # reuse the cached estate (no re-scan)
-    return build_estate_agent(cfg=Config.load(), callback_handler=None,
-                              tools=build_estate_tools(index=idx))
+    tools = build_estate_tools(index=idx) + build_diagram_tools(index=idx)
+    return build_estate_agent(cfg=Config.load(), callback_handler=None, tools=tools)
+
+
+def _render_chat_diagram(d: dict, key: str):
+    """Render a draw_diagram artifact in the chat: SVG inline + .drawio/.png/.svg downloads."""
+    import os
+    if not d or not d.get("ok"):
+        if d and d.get("error"):
+            st.caption(f"⚠ diagram: {d['error']}")
+        return
+    if d.get("svg_content"):
+        st.html(f'<div style="overflow:auto;max-height:560px;background:#ffffff;'
+                f'border:1px solid #e6e6e6;border-radius:6px">{d["svg_content"]}</div>')
+    cols = st.columns(3)
+    for col, fmt, label in ((cols[0], "drawio", "⬇ .drawio"),
+                            (cols[1], "png", "⬇ .png"), (cols[2], "svg", "⬇ .svg")):
+        p = d.get(fmt)
+        if p and os.path.exists(p):
+            with open(p, "rb") as fh:
+                col.download_button(label, fh.read(), file_name=os.path.basename(p),
+                                    key=f"dl_{fmt}_{key}")
 
 
 def render():
@@ -76,18 +97,28 @@ def render():
     st.caption(f"{len(rows)} resources" + (" (showing first 500)" if len(rows) > 500 else ""))
 
     st.subheader("Ask about the estate")
-    st.caption("Inventory above is exact (tool layer); the agent explains and explores.")
+    st.caption("Inventory above is exact (tool layer); the agent explains, explores, and draws.")
     if "devops_chat" not in st.session_state:
         st.session_state.devops_chat = []
-    for m in st.session_state.devops_chat:
+    for i, m in enumerate(st.session_state.devops_chat):
         st.chat_message(m["role"]).write(m["content"])
-    if q := st.chat_input("e.g. how many EC2 instances? · what's in us-east-1? · find anything tagged prod"):
+        if m.get("diagram"):
+            _render_chat_diagram(m["diagram"], key=str(i))
+    if q := st.chat_input("e.g. how many EC2 instances? · draw my network in eu-west-2 · diagram the estate"):
         st.session_state.devops_chat.append({"role": "user", "content": q})
         st.chat_message("user").write(q)
+        from devops_core.diagram import registry as _diag
+        _diag.clear()
         try:
             with st.spinner("Thinking…"):
                 text = str(_agent(regions_tuple)(q)).strip()
         except Exception as e:
             text = f"(agent unavailable: {e})"
-        st.session_state.devops_chat.append({"role": "assistant", "content": text})
+        diagram = _diag.last_diagram()
+        msg = {"role": "assistant", "content": text}
+        if diagram:
+            msg["diagram"] = diagram
+        st.session_state.devops_chat.append(msg)
         st.chat_message("assistant").write(text)
+        if diagram:
+            _render_chat_diagram(diagram, key="new")
