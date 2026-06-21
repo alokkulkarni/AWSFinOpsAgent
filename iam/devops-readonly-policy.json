@@ -1,0 +1,45 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EstateDiscoveryReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "resource-explorer-2:Search",
+        "resource-explorer-2:List*",
+        "resource-explorer-2:Get*",
+        "tag:GetResources",
+        "tag:GetTagKeys",
+        "tag:GetTagValues",
+        "config:SelectAggregateResourceConfig",
+        "config:GetAggregateDiscoveredResourceCounts",
+        "config:ListAggregateDiscoveredResources",
+        "config:DescribeConfigurationAggregators",
+        "ec2:Describe*",
+        "rds:Describe*",
+        "elasticloadbalancing:Describe*",
+        "lambda:List*",
+        "lambda:GetFunction*",
+        "ecs:List*",
+        "ecs:Describe*",
+        "eks:List*",
+        "eks:Describe*",
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation",
+        "s3:GetBucketTagging",
+        "cloudfront:List*",
+        "route53:List*",
+        "apigateway:GET",
+        "dynamodb:List*",
+        "dynamodb:DescribeTable",
+        "iam:List*",
+        "iam:GetRole",
+        "iam:GetPolicy",
+        "organizations:ListAccounts",
+        "organizations:DescribeOrganization",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
