@@ -16,8 +16,12 @@ from devops_core.discovery.index import EstateIndex
 
 _cfg = Config.load()
 _regions = os.getenv("DEVOPS_SCAN_REGIONS")
-_index = EstateIndex(build_session(_cfg), _cfg,
-                     regions=[r.strip() for r in _regions.split(",")] if _regions else None)
+_index = EstateIndex(
+    build_session(_cfg), _cfg,
+    regions=[r.strip() for r in _regions.split(",")] if _regions else None,
+    fan_out=os.getenv("DEVOPS_FAN_OUT", "").lower() in ("1", "true", "yes"),
+    role_name=os.getenv("DEVOPS_MEMBER_ROLE", "OrganizationAccountAccessRole"),
+)
 
 mcp = FastMCP(
     "devops-estate-tools",

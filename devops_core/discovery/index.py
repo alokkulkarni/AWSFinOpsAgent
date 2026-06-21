@@ -12,16 +12,20 @@ from devops_core.schemas.estate import Estate
 
 class EstateIndex:
     def __init__(self, session=None, cfg=None, regions: Optional[list] = None,
-                 estate: Optional[Estate] = None):
+                 estate: Optional[Estate] = None, fan_out: bool = False,
+                 role_name: str = "OrganizationAccountAccessRole"):
         self._session = session
         self._cfg = cfg
         self._regions = regions
         self._estate = estate
+        self._fan_out = fan_out
+        self._role_name = role_name
 
     def estate(self) -> Estate:
         if self._estate is None:
             from devops_core.discovery.engine import EstateScanner
-            self._estate = EstateScanner(self._session, self._cfg).scan(regions=self._regions)
+            self._estate = EstateScanner(self._session, self._cfg).scan(
+                regions=self._regions, fan_out=self._fan_out, role_name=self._role_name)
         return self._estate
 
     def summary(self) -> dict:

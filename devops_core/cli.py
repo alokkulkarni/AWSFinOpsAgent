@@ -16,6 +16,9 @@ def _build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--regions", default=None, help="comma list, e.g. eu-west-2,us-east-1 (default: all enabled)")
     sc.add_argument("--source", default="auto",
                     choices=["auto", "config", "resource-explorer", "tagging"])
+    sc.add_argument("--org", action="store_true", help="fan out to Organization member accounts (assume-role)")
+    sc.add_argument("--role-name", default="OrganizationAccountAccessRole",
+                    help="read-only role to assume in member accounts")
     sc.add_argument("--json", action="store_true")
     sc.add_argument("--top", type=int, default=20)
 
@@ -25,6 +28,8 @@ def _build_parser() -> argparse.ArgumentParser:
     dg.add_argument("--group-by", default="region", choices=["region", "account"])
     dg.add_argument("--out", default="diagrams/estate", help="output path prefix")
     dg.add_argument("--format", default="all", choices=["drawio", "svg", "png", "all"])
+    dg.add_argument("--org", action="store_true", help="fan out to member accounts")
+    dg.add_argument("--role-name", default="OrganizationAccountAccessRole")
 
     ak = sub.add_parser("ask", help="ask the DevOps/estate agent a question")
     ak.add_argument("question")
@@ -44,7 +49,8 @@ def _run_scan(args) -> int:
     cfg = Config.load(args.config)
     regions = [r.strip() for r in args.regions.split(",")] if args.regions else None
     try:
-        est = EstateScanner(cfg=cfg).scan(regions=regions, source=args.source)
+        est = EstateScanner(cfg=cfg).scan(regions=regions, source=args.source,
+                                          fan_out=args.org, role_name=args.role_name)
     except Exception as e:
         print(f"[error] estate scan failed: {e}")
         return 2
@@ -82,7 +88,7 @@ def _run_diagram(args) -> int:
     cfg = Config.load(args.config)
     regions = [r.strip() for r in args.regions.split(",")] if args.regions else None
     try:
-        est = EstateScanner(cfg=cfg).scan(regions=regions)
+        est = EstateScanner(cfg=cfg).scan(regions=regions, fan_out=args.org, role_name=args.role_name)
     except Exception as e:
         print(f"[error] estate scan failed: {e}")
         return 2
