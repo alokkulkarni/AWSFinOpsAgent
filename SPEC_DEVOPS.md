@@ -88,11 +88,18 @@ narrates. Routed via the deterministic `IntentRouter` (new `devops` intents) or 
 
 The bulk inventory is intentionally **thin** (id/type/region/tags) for breadth; **complete** per-
 resource detail comes from an **on-demand deep describe** (the drill-down). `describe_resource`
-returns the inventory record PLUS a live `detail` (e.g. an ENI's Status/Attachment/Description, an
-instance's full config, an SG's rules) via `discovery/details.py` (EC2 networking/compute family +
-ELB/Lambda/RDS; graceful note for the rest; JSON-safe). So the agent answers attachment/orphan/
-config questions **definitively** rather than hedging "the inventory doesn't expose X". The
-dashboard action panel adds a **🔎 Describe** button surfacing the same detail.
+returns the inventory record PLUS a live `detail` via `discovery/details.py`. Coverage, in order:
+(1) **special handlers** for awkward APIs (S3 multi-call, SQS url, ECS service, SSM param), (2) a
+**broad describe table** across ~30 services (EC2 networking/compute family · ELB · Lambda · RDS ·
+DynamoDB · SNS/SQS · ECS/EKS/ECR · IAM · CloudFront · Route53 · KMS · SecretsManager · Step
+Functions · ElastiCache · EFS · Kinesis · CloudWatch/Logs · SSM · CloudFormation · AutoScaling ·
+Cognito · ACM · EventBridge · CloudTrail · Athena · Backup · AppSync · Bedrock · Amplify · …),
+(3) an **AWS Config universal fallback** (any type Config records, when recording is enabled),
+(4) a graceful note (inventory + tags) for the deep long tail. Type keys normalize across sources
+(`elasticloadbalancing:listener/app` → `:listener`). JSON-safe. On the real estate this resolves
+**~77% of resources** (all mainstream services); so the agent answers attachment/orphan/config
+questions **definitively** instead of hedging "the inventory doesn't expose X". The dashboard
+action panel adds a **🔎 Describe** button surfacing the same detail.
 
 ## 7. IAM
 Discovery is read-only: AWS managed **`ReadOnlyAccess`** (or **`ViewOnlyAccess`**) suffices; a
