@@ -167,10 +167,11 @@ def render():
             chosen = {"service": rv_svc, "id": manual.strip(), "region": None}
 
     posture = st.session_state.get("mode", "advisory")
-    b1, b2, _ = st.columns([1, 1, 3])
+    b1, b2, b3, _ = st.columns([1, 1, 1, 2])
     do_review = b1.button("🔍 Review", disabled=chosen is None)
     do_diag = b2.button("🩺 Diagnose", disabled=chosen is None)
-    if chosen and (do_review or do_diag):
+    do_describe = b3.button("🔎 Describe", disabled=chosen is None)
+    if chosen and (do_review or do_diag or do_describe):
         region = chosen.get("region")
         try:
             if do_review:
@@ -178,12 +179,19 @@ def render():
                 with st.spinner(f"Reviewing {chosen['id']}…"):
                     _render_review_result(
                         review_service(chosen["service"], chosen["id"], region=region).to_dict(limit=15))
-            else:
+            elif do_diag:
                 from devops_core.diagnose.engine import diagnose_service
                 with st.spinner(f"Diagnosing {chosen['id']}…"):
                     _render_diagnose_result(
                         diagnose_service(chosen["service"], chosen["id"], region=region,
                                          mode=posture).to_dict())
+            else:
+                from devops_core.discovery.index import EstateIndex
+                with st.spinner(f"Describing {chosen['id']}…"):
+                    out = EstateIndex(estate=est).describe(chosen["id"])
+                st.markdown(f"**{out.get('service', '?')} · {out.get('resource_type', '?')}**  · "
+                            f"`{out.get('id', '')}`")
+                st.json(out.get("detail") or {"detail": None, "note": out.get("note", "n/a")})
         except Exception as e:
             st.error(f"Failed: {e}")
 

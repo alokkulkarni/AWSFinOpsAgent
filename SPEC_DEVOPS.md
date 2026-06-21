@@ -86,6 +86,14 @@ A `devops-agent` (Strands) over deterministic estate tools: `get_estate_summary`
 `find_resource(query)`, `get_diagram()`. Numbers/inventory come from tools (exact); the LLM
 narrates. Routed via the deterministic `IntentRouter` (new `devops` intents) or the orchestrator.
 
+The bulk inventory is intentionally **thin** (id/type/region/tags) for breadth; **complete** per-
+resource detail comes from an **on-demand deep describe** (the drill-down). `describe_resource`
+returns the inventory record PLUS a live `detail` (e.g. an ENI's Status/Attachment/Description, an
+instance's full config, an SG's rules) via `discovery/details.py` (EC2 networking/compute family +
+ELB/Lambda/RDS; graceful note for the rest; JSON-safe). So the agent answers attachment/orphan/
+config questions **definitively** rather than hedging "the inventory doesn't expose X". The
+dashboard action panel adds a **🔎 Describe** button surfacing the same detail.
+
 ## 7. IAM
 Discovery is read-only: AWS managed **`ReadOnlyAccess`** (or **`ViewOnlyAccess`**) suffices; a
 tighter explicit policy covers `config:*Aggregate*`, `resource-explorer-2:Search/List*`,
