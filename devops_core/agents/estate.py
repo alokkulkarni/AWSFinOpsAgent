@@ -17,6 +17,7 @@ def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_hand
     from finops_core.hooks import default_hooks
     from devops_core.discovery.index import EstateIndex
     from devops_core.steering import load_steering
+    from devops_core.tools.diagnose_tool import build_diagnose_tools  # noqa: F401  (see below)
     from devops_core.tools.diagram_tool import build_diagram_tools
     from devops_core.tools.estate import build_estate_tools
     from devops_core.tools.review_tool import build_review_tools
@@ -26,7 +27,8 @@ def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_hand
         index = EstateIndex(session, cfg)  # shared so diagrams reuse the scanned estate
         tools = (build_estate_tools(session, cfg, index=index)
                  + build_diagram_tools(session, cfg, index=index)
-                 + build_review_tools(session, cfg))
+                 + build_review_tools(session, cfg)
+                 + build_diagnose_tools(session, cfg))
     if hooks is None:
         hooks = default_hooks(cfg)
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}

@@ -51,6 +51,15 @@ def _build_parser() -> argparse.ArgumentParser:
     rv.add_argument("--no-code", action="store_true", help="skip Lambda code analysis")
     rv.add_argument("--json", action="store_true")
 
+    dn = sub.add_parser("diagnose", help="debug a faulty resource (alarms/logs/CloudTrail → cause)")
+    dn.add_argument("service", help="lambda | ec2 | rds | ... (inferred from an ARN)")
+    dn.add_argument("resource_id", help="name, id, or ARN")
+    dn.add_argument("--region", default=None)
+    dn.add_argument("--config", default=None)
+    dn.add_argument("--mode", default=None, choices=["advisory", "artifacts", "guarded_write"],
+                    help="action posture for fix output (default: config/FINOPS_MODE)")
+    dn.add_argument("--json", action="store_true")
+
     sv = sub.add_parser("serve", help="run a distributed DevOps service")
     sv.add_argument("service", choices=["devops-tools", "devops-agent"])
     return parser
@@ -199,6 +208,45 @@ def _run_review(args) -> int:
     return 0
 
 
+def _run_diagnose(args) -> int:
+    from finops_core.config import Config
+    from devops_core.diagnose.engine import diagnose_service
+
+    cfg = Config.load(args.config)
+    try:
+        diag = diagnose_service(args.service, args.resource_id, region=args.region,
+                                mode=args.mode, cfg=cfg)
+    except Exception as e:
+        print(f"[error] diagnose failed: {e}")
+        return 2
+
+    d = diag.to_dict()
+    if args.json:
+        print(json.dumps(d, indent=2))
+        return 0
+
+    print(f"\nDiagnose: {d['service']} · {d['resource_id']}"
+          + (f" · {d['region']}" if d['region'] else "") + f"   [posture: {d['mode']}]")
+    s = d["signals"]
+    print(f"  signals: {len(s.get('alarms', []))} alarm(s), "
+          f"{len(s.get('log_errors', []))} error log line(s), "
+          f"{len(s.get('recent_changes', []))} recent change(s)")
+    if d["healthy"]:
+        print("  ✓ no active fault detected")
+    for h in d["hypotheses"]:
+        print(f"\n  [{h['confidence'].upper()}] {h['cause']}")
+        for ev in h["evidence"][:3]:
+            print(f"    · {ev}")
+        print(f"    fix: {h['fix']}")
+        if h.get("fix_command"):
+            print(f"    cmd: {h['fix_command']}")
+        if h.get("apply"):
+            print(f"    ⚠ {h['apply']}")
+    for n in d["notes"]:
+        print(f"  ! {n}")
+    return 0
+
+
 def _result_text(result) -> str:
     msg = getattr(result, "message", None)
     if isinstance(msg, dict):
@@ -221,6 +269,7 @@ def _run_ask(args) -> int:
     from finops_core.config import Config
     from devops_core.agents.estate import build_estate_agent
     from devops_core.discovery.index import EstateIndex
+    from devops_core.tools.diagnose_tool import build_diagnose_tools
     from devops_core.tools.diagram_tool import build_diagram_tools
     from devops_core.tools.estate import build_estate_tools
     from devops_core.tools.review_tool import build_review_tools
@@ -231,7 +280,7 @@ def _run_ask(args) -> int:
         session = build_session(cfg)
         idx = EstateIndex(session, cfg, regions=regions)
         tools = (build_estate_tools(index=idx) + build_diagram_tools(session, cfg, index=idx)
-                 + build_review_tools(session, cfg))
+                 + build_review_tools(session, cfg) + build_diagnose_tools(session, cfg))
         agent = build_estate_agent(cfg=cfg, session=session, callback_handler=None, tools=tools)
     except ImportError:
         print("[error] the agent needs Strands: pip install -e '.[agent]'")
@@ -253,6 +302,8 @@ def main(argv: Optional[list] = None) -> int:
         return _run_ask(args)
     if args.cmd == "review":
         return _run_review(args)
+    if args.cmd == "diagnose":
+        return _run_diagnose(args)
     if args.cmd == "serve":
         import importlib
         mod = {"devops-tools": "devops_core.mcp_servers.estate_server",
