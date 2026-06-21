@@ -29,9 +29,10 @@ dev = ["pytest>=8.0", "moto>=5.0", "ruff>=0.4"]
 
 [project.scripts]
 finops = "finops_core.cli:main"
+devops = "devops_core.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["finops_core*", "apps*"]
+include = ["finops_core*", "devops_core*", "apps*"]
 
 [tool.setuptools.package-data]
 finops_core = ["steering/*.md"]
