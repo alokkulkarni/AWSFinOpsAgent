@@ -52,6 +52,12 @@ def find_resource(query: str, limit: int = 20) -> dict:
     return _index.find(query, limit=limit)
 
 
+@mcp.tool(description="Network topology of a region: VPCs -> subnets -> instances, IGW/NAT/peering.")
+def get_topology(region: str) -> dict:
+    from devops_core.discovery.topology import TopologyScanner
+    return TopologyScanner(build_session(_cfg), _cfg).scan(region).to_dict()
+
+
 def main() -> None:
     print(f"[devops-tools] MCP streamable-http on "
           f"{mcp.settings.host}:{mcp.settings.port}{mcp.settings.streamable_http_path}")
