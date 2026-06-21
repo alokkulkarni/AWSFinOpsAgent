@@ -40,12 +40,56 @@ def test_instance_detail_unwraps_reservations(monkeypatch):
     assert out["detail"]["State"]["Name"] == "running"
 
 
+class _FakeIam:
+    def get_role(self, RoleName):
+        return {"Role": {"RoleName": RoleName, "Arn": f"arn:aws:iam::1:role/{RoleName}"}}
+
+
+def test_wrap_shape_unwraps_single_key(monkeypatch):
+    import devops_core.discovery.details as mod
+    monkeypatch.setattr(mod, "client", lambda session, svc, region=None: _FakeIam())
+    role = Resource.from_arn("arn:aws:iam::1:role/my-role")
+    out = resource_details(object(), role)
+    assert out["detail"]["RoleName"] == "my-role"
+
+
+class _FakeEcs:
+    def describe_services(self, cluster, services):
+        return {"services": [{"serviceName": services[0], "cluster": cluster, "status": "ACTIVE"}]}
+
+
+def test_ecs_service_parses_cluster_from_id(monkeypatch):
+    import devops_core.discovery.details as mod
+    monkeypatch.setattr(mod, "client", lambda session, svc, region=None: _FakeEcs())
+    # ARN arn:aws:ecs:r:a:service/cluster-name/svc-name → id "cluster-name/svc-name"
+    svc = Resource.from_arn("arn:aws:ecs:eu-west-2:1:service/prod-cluster/web")
+    out = resource_details(object(), svc)
+    assert out["detail"]["cluster"] == "prod-cluster"
+    assert out["detail"]["serviceName"] == "web"
+
+
+def test_normalized_type_key_for_elb_listener(monkeypatch):
+    # Resource Explorer emits 'elasticloadbalancing:listener/app' → normalizes to :listener
+    import devops_core.discovery.details as mod
+
+    class _Elb:
+        def describe_listeners(self, ListenerArns):
+            return {"Listeners": [{"ListenerArn": ListenerArns[0], "Port": 443}]}
+    monkeypatch.setattr(mod, "client", lambda session, svc, region=None: _Elb())
+    r = Resource.from_arn("arn:aws:elasticloadbalancing:eu-west-2:1:listener/app/lb/abc/def")
+    r.resource_type = "elasticloadbalancing:listener/app"  # RE-native form
+    out = resource_details(object(), r)
+    assert out["detail"]["Port"] == 443
+
+
 def test_unsupported_type_is_graceful():
-    r = Resource.from_arn("arn:aws:sns:eu-west-2:1:my-topic")
+    r = Resource.from_arn("arn:aws:wisdom:eu-west-2:1:assistant/xyz")
     out = resource_details(object(), r)
     assert out["detail"] is None and out.get("note")
 
 
-def test_detail_supported_flags_eni():
-    assert detail_supported("ec2:network-interface")
-    assert not detail_supported("sns:")
+def test_detail_supported_flags_common_services():
+    for rt in ("ec2:network-interface", "iam:role", "s3", "sqs", "dynamodb:table",
+               "cloudfront:distribution", "elasticloadbalancing:listener/app"):
+        assert detail_supported(rt), rt
+    assert not detail_supported("wisdom:assistant")
