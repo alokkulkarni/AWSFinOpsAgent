@@ -105,7 +105,7 @@ uses a `DevOpsReadOnly` role per member (ship the policy + a setup script, like 
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
 | **1. Discovery engine** | `devops_core` scaffold; `Estate` schema; multi-source `EstateScanner` (Config/RE/Tagging/describes, graceful); `devops scan` CLI | Real estate inventory (counts by service/region) vs console — ✅ **Done**: scanned **870 resources** across 3 regions (RE + Tagging; Config empty → noted); 85 tests |
-| **2. Diagram** | `.drawio` builder (AWS shapes) + render (CLI/headless/SVG); `devops diagram` | Valid `.drawio` + PNG/SVG of the estate |
+| **2. Diagram** | `.drawio` builder (AWS shapes) + render (CLI/headless/SVG); `devops diagram` | Valid `.drawio` + PNG/SVG of the estate — ✅ **Done**: native `.drawio` (AWS4 icons, swimlane regions) + CLI-rendered PNG + self-contained SVG of the real 870-resource estate |
 | **3. DevOps agent (distributed)** | devops-tools MCP + devops-agent A2A; estate Q&A tools; IntentRouter `devops` intents | Q&A answers about components/topology, distributed |
 | **4. Frontend product selector** | FinOps\|DevOps selector; DevOps dashboard page (KPIs + diagram + inventory + chat); `/estate` + `/diagram` API | Journey: pick DevOps → see estate + diagram + ask |
 | **5. Org fan-out** | assume-role per member; per-account inventory + cross-account topology; `DevOpsReadOnly` policy/script | Multi-account estate map |

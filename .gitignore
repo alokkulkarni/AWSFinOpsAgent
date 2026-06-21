@@ -32,5 +32,6 @@ dist/
 # --- Local artifacts ---
 audit/
 reports/
+diagrams/
 *.parquet
 athena-output/
