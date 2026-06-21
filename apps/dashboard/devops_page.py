@@ -23,13 +23,17 @@ def _scan(regions_tuple):
 def _agent(regions_tuple):
     from devops_core.agents.estate import build_estate_agent
     from devops_core.discovery.index import EstateIndex
+    from devops_core.tools.diagnose_tool import build_diagnose_tools
     from devops_core.tools.diagram_tool import build_diagram_tools
     from devops_core.tools.estate import build_estate_tools
     from devops_core.tools.review_tool import build_review_tools
     idx = EstateIndex(estate=_scan(regions_tuple))           # reuse the cached estate (no re-scan)
+    cfg = Config.load()
+    # diagnose: no captured cfg so it Config.load()s fresh each call → picks up the live action
+    # posture (FINOPS_MODE), which the page exports from the sidebar selector before each turn.
     tools = (build_estate_tools(index=idx) + build_diagram_tools(index=idx)
-             + build_review_tools())
-    return build_estate_agent(cfg=Config.load(), callback_handler=None, tools=tools)
+             + build_review_tools(cfg=cfg) + build_diagnose_tools())
+    return build_estate_agent(cfg=cfg, callback_handler=None, tools=tools)
 
 
 def _render_chat_diagram(d: dict, key: str):
@@ -109,7 +113,9 @@ def render():
     if q := st.chat_input("e.g. how many EC2 instances? · draw my network in eu-west-2 · diagram the estate"):
         st.session_state.devops_chat.append({"role": "user", "content": q})
         st.chat_message("user").write(q)
+        import os
         from devops_core.diagram import registry as _diag
+        os.environ["FINOPS_MODE"] = st.session_state.get("mode", "advisory")  # live fault-fix posture
         _diag.clear()
         try:
             with st.spinner("Thinking…"):
