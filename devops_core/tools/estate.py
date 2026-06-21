@@ -27,7 +27,12 @@ def build_estate_tools(session=None, cfg=None, index: Optional[EstateIndex] = No
 
     @tool
     def describe_resource(id_or_arn: str) -> dict:
-        """Look up a single resource by its id or ARN (returns type, region, account, tags, ...)."""
+        """Full detail for ONE resource by id or ARN — the inventory record PLUS a live deep
+        describe under `detail` (e.g. an ENI's Status/Attachment/Description, an instance's full
+        config, an SG's rules, a subnet/VPC/NAT/endpoint's attributes). Use this whenever a
+        question needs more than id/type/region/tags (attachment, status, rules, config) so you can
+        answer definitively instead of guessing. `detail` is null with a `note` for unsupported
+        types or when the resource isn't found live."""
         return index.describe(id_or_arn)
 
     @tool

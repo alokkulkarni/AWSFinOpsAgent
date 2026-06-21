@@ -45,14 +45,36 @@ class EstateIndex:
         return {"count": len(rs), "truncated": len(rs) > limit,
                 "resources": [asdict(r) for r in rs[:limit]]}
 
-    def describe(self, query: str) -> dict:
+    def _live_session(self):
+        """A boto session for on-demand deep describes (the injected one, or build from cfg)."""
+        if self._session is None:
+            from finops_core.aws.session import build_session
+            from finops_core.config import Config
+            self._session = build_session(self._cfg or Config.load())
+        return self._session
+
+    def describe(self, query: str, details: bool = True) -> dict:
+        match = None
         for r in self.estate().resources:
             if r.arn == query or r.id == query:
-                return asdict(r)
-        for r in self.estate().resources:  # partial match
-            if query and (query in (r.arn or "") or query in r.id):
-                return asdict(r)
-        return {"error": f"no resource matching {query!r}"}
+                match = r
+                break
+        if match is None:
+            for r in self.estate().resources:  # partial match
+                if query and (query in (r.arn or "") or query in r.id):
+                    match = r
+                    break
+        if match is None:
+            return {"error": f"no resource matching {query!r}"}
+
+        out = asdict(match)
+        if details:  # drill-down: live, service-specific attributes the inventory omits
+            from devops_core.discovery.details import resource_details
+            try:
+                out.update(resource_details(self._live_session(), match))
+            except Exception as e:  # never let enrichment break the base answer
+                out["note"] = f"detail unavailable: {type(e).__name__}"
+        return out
 
     def find(self, query: str, limit: int = 20) -> dict:
         q = (query or "").lower()
