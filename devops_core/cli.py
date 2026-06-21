@@ -25,6 +25,15 @@ def _build_parser() -> argparse.ArgumentParser:
     dg.add_argument("--group-by", default="region", choices=["region", "account"])
     dg.add_argument("--out", default="diagrams/estate", help="output path prefix")
     dg.add_argument("--format", default="all", choices=["drawio", "svg", "png", "all"])
+
+    ak = sub.add_parser("ask", help="ask the DevOps/estate agent a question")
+    ak.add_argument("question")
+    ak.add_argument("--config", default=None)
+    ak.add_argument("--regions", default=None)
+    ak.add_argument("--remote", default=None, metavar="URL", help="call a remote A2A devops-agent")
+
+    sv = sub.add_parser("serve", help="run a distributed DevOps service")
+    sv.add_argument("service", choices=["devops-tools", "devops-agent"])
     return parser
 
 
@@ -102,6 +111,42 @@ def _run_diagram(args) -> int:
     return 0
 
 
+def _result_text(result) -> str:
+    msg = getattr(result, "message", None)
+    if isinstance(msg, dict):
+        parts = [p.get("text", "") for p in msg.get("content", []) if isinstance(p, dict)]
+        if any(parts):
+            return "".join(parts).strip()
+    return str(result).strip()
+
+
+def _run_ask(args) -> int:
+    if args.remote:
+        try:
+            from strands.agent.a2a_agent import A2AAgent
+        except ImportError:
+            print("[error] remote needs the A2A extra: pip install 'strands-agents[a2a]'")
+            return 2
+        print(_result_text(A2AAgent(endpoint=args.remote)(args.question)))
+        return 0
+    from finops_core.aws.session import build_session
+    from finops_core.config import Config
+    from devops_core.agents.estate import build_estate_agent
+    from devops_core.discovery.index import EstateIndex
+    from devops_core.tools.estate import build_estate_tools
+
+    cfg = Config.load(args.config)
+    regions = [r.strip() for r in args.regions.split(",")] if args.regions else None
+    try:
+        idx = EstateIndex(build_session(cfg), cfg, regions=regions)
+        agent = build_estate_agent(cfg=cfg, callback_handler=None, tools=build_estate_tools(index=idx))
+    except ImportError:
+        print("[error] the agent needs Strands: pip install -e '.[agent]'")
+        return 2
+    print(_result_text(agent(args.question)))
+    return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -109,6 +154,14 @@ def main(argv: Optional[list] = None) -> int:
         return _run_scan(args)
     if args.cmd == "diagram":
         return _run_diagram(args)
+    if args.cmd == "ask":
+        return _run_ask(args)
+    if args.cmd == "serve":
+        import importlib
+        mod = {"devops-tools": "devops_core.mcp_servers.estate_server",
+               "devops-agent": "devops_core.services.estate_agent_server"}[args.service]
+        importlib.import_module(mod).main()
+        return 0
     parser.print_help()
     return 1
 

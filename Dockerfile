@@ -12,6 +12,7 @@ WORKDIR /app
 # service: preflight, cost-tools MCP server, A2A agent/orchestrator servers, and the dashboard.
 COPY pyproject.toml README.md ./
 COPY finops_core ./finops_core
+COPY devops_core ./devops_core
 COPY apps ./apps
 RUN pip install --no-cache-dir -e ".[agent,api,dashboard]"
 

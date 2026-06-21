@@ -30,6 +30,10 @@ services:
     <<: *hardened
   orchestrator:
     <<: *hardened
+  devops-tools:
+    <<: *hardened
+  devops-agent:
+    <<: *hardened
   api:
     <<: *hardened
   dashboard:

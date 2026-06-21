@@ -129,6 +129,34 @@ services:
     ports: ["9000:9000"]
     command: ["serve", "orchestrator"]
 
+  # DevOps estate TOOL tier — estate inventory tools over MCP
+  devops-tools:
+    <<: *finops-base
+    entrypoint: ["devops"]
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      FINOPS_MCP_HOST: "0.0.0.0"
+      DEVOPS_MCP_PORT: "8085"
+      DEVOPS_SCAN_REGIONS: ${DEVOPS_SCAN_REGIONS:-eu-west-2,us-east-1}
+    expose: ["8085"]
+    command: ["serve", "devops-tools"]
+
+  # DevOps estate SUB-AGENT tier — estate Q&A over A2A
+  devops-agent:
+    <<: *finops-base
+    depends_on: [devops-tools]
+    entrypoint: ["devops"]
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      DEVOPS_TOOLS_URL: "http://devops-tools:8085/mcp"
+      FINOPS_A2A_HOST: "0.0.0.0"
+      FINOPS_A2A_PORT: "9005"
+      FINOPS_A2A_PUBLIC_URL: "http://devops-agent:9005"
+    expose: ["9005"]
+    command: ["serve", "devops-agent"]
+
   # INTERFACE tier — FastAPI gateway (REST + OpenAPI). Deterministic data endpoints;
   # /query routes via the IntentRouter to the specialist A2A sub-agents.
   api:

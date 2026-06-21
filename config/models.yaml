@@ -7,6 +7,7 @@ roles:
   cost:         us.anthropic.claude-sonnet-4-6
   optimization: us.anthropic.claude-sonnet-4-6
   sql:          us.anthropic.claude-sonnet-4-6
+  devops:       us.anthropic.claude-sonnet-4-6
   digest:       us.amazon.nova-pro-v1:0
 
 # Cheaper/faster fallback used on throttling or to bound cost (Claude Haiku 4.5)
