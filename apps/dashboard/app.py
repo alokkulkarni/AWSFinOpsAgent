@@ -73,6 +73,13 @@ def money(x, cur="USD"):
 if "drill" not in st.session_state:
     st.session_state.drill = []  # list[(dimension, value)]
 
+# ---- product selector (FinOps | DevOps) ------------------------------------
+_product = st.sidebar.radio("Product", ["FinOps 💰", "DevOps 🏗️"], horizontal=True, key="product")
+if _product.startswith("DevOps"):
+    from apps.dashboard.devops_page import render as render_devops
+    render_devops()
+    st.stop()
+
 # ---- sidebar ---------------------------------------------------------------
 with st.sidebar:
     st.header("💰 FinOps Agent")
