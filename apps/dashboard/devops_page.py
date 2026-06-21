@@ -25,8 +25,10 @@ def _agent(regions_tuple):
     from devops_core.discovery.index import EstateIndex
     from devops_core.tools.diagram_tool import build_diagram_tools
     from devops_core.tools.estate import build_estate_tools
+    from devops_core.tools.review_tool import build_review_tools
     idx = EstateIndex(estate=_scan(regions_tuple))           # reuse the cached estate (no re-scan)
-    tools = build_estate_tools(index=idx) + build_diagram_tools(index=idx)
+    tools = (build_estate_tools(index=idx) + build_diagram_tools(index=idx)
+             + build_review_tools())
     return build_estate_agent(cfg=Config.load(), callback_handler=None, tools=tools)
 
 

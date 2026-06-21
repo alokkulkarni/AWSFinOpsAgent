@@ -57,8 +57,9 @@ class ModelRouter:
             "temperature": llm.temperature,
             "max_tokens": llm.max_tokens,
         }
-        if llm.cache_prompt:
-            kwargs["cache_prompt"] = "default"
+        if llm.cache_prompt:  # auto system-prompt caching (non-deprecated API; replaces cache_prompt)
+            from strands.models.bedrock import CacheConfig
+            kwargs["cache_config"] = CacheConfig(strategy="auto")
         if llm.cache_tools:
             kwargs["cache_tools"] = "default"
         if llm.guardrail_id:  # Bedrock Guardrail (PII / denied topics), opt-in

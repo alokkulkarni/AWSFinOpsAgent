@@ -43,6 +43,14 @@ def _build_parser() -> argparse.ArgumentParser:
     ak.add_argument("--regions", default=None)
     ak.add_argument("--remote", default=None, metavar="URL", help="call a remote A2A devops-agent")
 
+    rv = sub.add_parser("review", help="review a resource for best-practice optimizations")
+    rv.add_argument("service", help="lambda | ec2 | rds | s3 | ... (inferred from an ARN)")
+    rv.add_argument("resource_id", help="name, id, or ARN")
+    rv.add_argument("--region", default=None)
+    rv.add_argument("--config", default=None)
+    rv.add_argument("--no-code", action="store_true", help="skip Lambda code analysis")
+    rv.add_argument("--json", action="store_true")
+
     sv = sub.add_parser("serve", help="run a distributed DevOps service")
     sv.add_argument("service", choices=["devops-tools", "devops-agent"])
     return parser
@@ -158,6 +166,39 @@ def _run_topology(args) -> int:
     return 0
 
 
+def _run_review(args) -> int:
+    from finops_core.config import Config
+    from devops_core.review.engine import review_service
+
+    cfg = Config.load(args.config)
+    try:
+        review = review_service(args.service, args.resource_id, region=args.region, cfg=cfg,
+                                include_code=not args.no_code)
+    except Exception as e:
+        print(f"[error] review failed: {e}")
+        return 2
+
+    d = review.to_dict()
+    if args.json:
+        print(json.dumps(d, indent=2))
+        return 0
+
+    print(f"\nReview: {d['service']} · {d['resource_id']}"
+          + (f" · {d['region']}" if d['region'] else ""))
+    if d["summary"]:
+        print("  config: " + ", ".join(f"{k}={v}" for k, v in d["summary"].items() if v is not None))
+    print(f"\n{d['finding_count']} finding(s): "
+          + ", ".join(f"{n} {sev}" for sev, n in d["by_severity"].items()) or "none")
+    for f in d["findings"]:
+        print(f"\n  [{f['severity'].upper()}] {f['title']}  ({f['rule_id']})")
+        print(f"    now: {f['current']}  →  {f['recommended']}")
+        print(f"    why: {f['rationale']}")
+        print(f"    doc: {f['doc_url']}")
+    for n in d["notes"]:
+        print(f"  ! {n}")
+    return 0
+
+
 def _result_text(result) -> str:
     msg = getattr(result, "message", None)
     if isinstance(msg, dict):
@@ -180,13 +221,18 @@ def _run_ask(args) -> int:
     from finops_core.config import Config
     from devops_core.agents.estate import build_estate_agent
     from devops_core.discovery.index import EstateIndex
+    from devops_core.tools.diagram_tool import build_diagram_tools
     from devops_core.tools.estate import build_estate_tools
+    from devops_core.tools.review_tool import build_review_tools
 
     cfg = Config.load(args.config)
     regions = [r.strip() for r in args.regions.split(",")] if args.regions else None
     try:
-        idx = EstateIndex(build_session(cfg), cfg, regions=regions)
-        agent = build_estate_agent(cfg=cfg, callback_handler=None, tools=build_estate_tools(index=idx))
+        session = build_session(cfg)
+        idx = EstateIndex(session, cfg, regions=regions)
+        tools = (build_estate_tools(index=idx) + build_diagram_tools(session, cfg, index=idx)
+                 + build_review_tools(session, cfg))
+        agent = build_estate_agent(cfg=cfg, session=session, callback_handler=None, tools=tools)
     except ImportError:
         print("[error] the agent needs Strands: pip install -e '.[agent]'")
         return 2
@@ -205,6 +251,8 @@ def main(argv: Optional[list] = None) -> int:
         return _run_topology(args)
     if args.cmd == "ask":
         return _run_ask(args)
+    if args.cmd == "review":
+        return _run_review(args)
     if args.cmd == "serve":
         import importlib
         mod = {"devops-tools": "devops_core.mcp_servers.estate_server",
