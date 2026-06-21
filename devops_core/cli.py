@@ -31,6 +31,12 @@ def _build_parser() -> argparse.ArgumentParser:
     dg.add_argument("--org", action="store_true", help="fan out to member accounts")
     dg.add_argument("--role-name", default="OrganizationAccountAccessRole")
 
+    tp = sub.add_parser("topology", help="draw a region's network topology (.drawio + PNG)")
+    tp.add_argument("--region", required=True)
+    tp.add_argument("--config", default=None)
+    tp.add_argument("--out", default="diagrams/topology")
+    tp.add_argument("--format", default="all", choices=["drawio", "png", "all"])
+
     ak = sub.add_parser("ask", help="ask the DevOps/estate agent a question")
     ak.add_argument("question")
     ak.add_argument("--config", default=None)
@@ -117,6 +123,41 @@ def _run_diagram(args) -> int:
     return 0
 
 
+def _run_topology(args) -> int:
+    from pathlib import Path
+
+    from finops_core.aws.session import build_session
+    from finops_core.config import Config
+    from devops_core.diagram.render import render
+    from devops_core.diagram.topology_drawio import build_topology_drawio
+    from devops_core.discovery.topology import TopologyScanner
+
+    cfg = Config.load(args.config)
+    try:
+        topo = TopologyScanner(build_session(cfg), cfg).scan(args.region)
+    except Exception as e:
+        print(f"[error] topology scan failed: {e}")
+        return 2
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    dpath = out.with_suffix(".drawio")
+    dpath.write_text(build_topology_drawio(topo))
+    written = [str(dpath)]
+    if args.format in ("png", "all"):
+        png = render(str(dpath), "png")
+        if png:
+            written.append(png)
+
+    print(f"Topology {args.region}: {len(topo.vpcs)} VPCs, {topo.subnet_count} subnets, "
+          f"{topo.instance_count} instances, {len(topo.peerings)} peering")
+    for w in written:
+        print(f"  wrote {w}")
+    for n in topo.notes:
+        print(f"  ! {n}")
+    return 0
+
+
 def _result_text(result) -> str:
     msg = getattr(result, "message", None)
     if isinstance(msg, dict):
@@ -160,6 +201,8 @@ def main(argv: Optional[list] = None) -> int:
         return _run_scan(args)
     if args.cmd == "diagram":
         return _run_diagram(args)
+    if args.cmd == "topology":
+        return _run_topology(args)
     if args.cmd == "ask":
         return _run_ask(args)
     if args.cmd == "serve":

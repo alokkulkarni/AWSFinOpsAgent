@@ -35,4 +35,12 @@ def build_estate_tools(session=None, cfg=None, index: Optional[EstateIndex] = No
         """Search the estate by id, name, ARN, service, resource type, or tag value."""
         return index.find(query, limit=limit)
 
-    return [get_estate_summary, list_resources, describe_resource, find_resource]
+    @tool
+    def get_topology(region: str) -> dict:
+        """Network topology of a region: VPCs -> subnets -> instances, with IGW/NAT/endpoints
+        and VPC peering. Use for "show my network/VPC layout in <region>"."""
+        from finops_core.config import Config
+        from devops_core.discovery.topology import TopologyScanner
+        return TopologyScanner(session, cfg or Config()).scan(region).to_dict()
+
+    return [get_estate_summary, list_resources, describe_resource, find_resource, get_topology]
