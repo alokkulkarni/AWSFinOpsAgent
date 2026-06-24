@@ -5,6 +5,7 @@ from typing import Optional
 
 from finops_core.config import Config
 from finops_core.models.router import ModelRouter
+from finops_core.skills import OPTIMIZE_SKILLS_DIR, attach_skills, skills_active
 from finops_core.tools.optimize import build_optimize_tools
 
 _DEFAULT = object()
@@ -19,9 +20,10 @@ def build_optimize_agent(
     name: str = "Optimization Agent",
     description: Optional[str] = None,
     hooks=None,
+    skills: Optional[bool] = None,
 ):
     """Cost-savings specialist. tools defaults to in-process Optimizer tools; pass MCP-served
-    tools to run distributed."""
+    tools to run distributed. skills: None → cfg.skills_enabled (default off); True/False forces."""
     from strands import Agent
 
     from finops_core.agents.prompts import OPTIMIZATION_PROMPT
@@ -33,6 +35,9 @@ def build_optimize_agent(
         tools = build_optimize_tools(session, cfg)
     if hooks is None:
         hooks = default_hooks(cfg)
+    tools, skill_kwargs = attach_skills(
+        tools, OPTIMIZE_SKILLS_DIR, enabled=skills_active(cfg, skills)
+    )
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
         model=router.for_role("optimization"),
@@ -44,5 +49,6 @@ def build_optimize_agent(
         system_prompt=OPTIMIZATION_PROMPT,
         tools=tools,
         hooks=hooks,
+        **skill_kwargs,
         **kwargs,
     )

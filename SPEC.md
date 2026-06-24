@@ -188,6 +188,46 @@ extract_context ─┬─▶ cost_by_service ───┐
 - **Swarm** (emergent handoff) is powerful but harder to cost-bound and reason about for
   a numbers-must-be-exact use case. Avoided for v1; revisit for "investigation" mode.
 
+### 5.4 Agent Skills (progressive disclosure)  ✅ *Phase 11 — opt-in, off by default.*
+
+Specialist *procedures* that are needed only **sometimes** (a Savings-Plan-vs-RI decision, a
+drill-down method, an anomaly-triage runbook) live as **skills** rather than bloating the
+always-on system prompt. Built on the Strands [`AgentSkills`](https://strandsagents.com/docs/user-guide/concepts/plugins/skills/)
+plugin: only each skill's `name` + `description` are front-loaded into the prompt; the full
+`SKILL.md` is pulled on demand when the model invokes the auto-registered `skills` tool.
+
+**A skill is a directory** (Agent Skills spec — `name` must equal the directory name):
+```
+finops_core/skills/<agent>/<skill-name>/
+  ├── SKILL.md            # YAML frontmatter (name, description, allowed-tools) + instructions
+  └── references/         # optional deep-dive files, pulled via the scoped reader
+```
+Per-agent folders (`finops_core/skills/{cost,optimize,anomaly}/`, `devops_core/skills/estate/`)
+keep each agent's reach minimal. The reusable machinery lives in `finops_core/skills/__init__.py`
+(discovery, gating, `attach_skills`, the scoped reader); `devops_core/skills` reuses it — mirroring
+how steering and the `ModelRouter` are shared.
+
+**Wiring.** Each `build_*_agent` factory accepts `skills: Optional[bool]` (None → `cfg.skills_enabled`).
+When on, `attach_skills` adds `plugins=[AgentSkills(...)]` and appends a **skills-dir-scoped file
+reader** to the tool list. When off (the default) it is a byte-for-byte no-op — no plugin, no extra
+tool — so existing behavior is unchanged. Enable via `skills.enabled` (`config/finops.yaml`),
+`FINOPS_SKILLS=1`, the `--skills/--no-skills` flag on `finops ask` / `devops ask`, the dashboard
+sidebar **"Agent skills (beta)"** toggle (FinOps + DevOps), or `build_*_agent(skills=True)`.
+Authoring guide: `docs/SKILLS.md`.
+
+**Posture (consistent with §14).**
+- Skills are **instructions, never data** — exact figures still come from the tool layer
+  (numbers-must-be-exact). Each seed skill explicitly restates "read every number from a tool".
+- The reader is the **only** filesystem reach skills add, and it is **least-privilege**: paths
+  resolving outside the agent's own skills folder are rejected (so the cost agent cannot read the
+  optimize agent's files). `SKILL.md` `allowed-tools` documents intent; the agent is only ever
+  granted that scoped reader.
+
+**Skills vs. the other mechanisms** — system prompt = always-on rules; **steering** = the agent's
+core playbook; **tools** = deterministic AWS execution; **skills** = sometimes-needed procedures
+within one agent; **sub-agents** = different roles. Seeds shipped: `cost-drilldown-playbook`,
+`savings-plan-vs-ri`, `anomaly-triage`, `incident-triage-runbook`.
+
 ---
 
 ## 6. Model Strategy (Bedrock with fallback)
@@ -449,6 +489,9 @@ secrets in images/logs. **Verified**: full stack runs and answers under the hard
   `guarded_write` (defense-in-depth at the tool layer); **structured output** (`FinOpsAnswer`)
   returns exact figures as typed fields; an optional **Bedrock Guardrail** (PII / prompt-attack,
   off by default) is wired via `ModelRouter` — see `docs/GUARDRAILS.md` (+ the PII-logging caveat).
+- **Agent skills (opt-in, §5.4):** skills carry *instructions only* (numbers still come from
+  tools); the lone filesystem capability they add is a **per-agent directory-scoped reader** that
+  rejects path-escape, keeping the read-only/least-privilege posture intact.
 
 ---
 
@@ -524,6 +567,8 @@ AWSFinOpsAgent/
 │   ├── mcp_servers/    # FastMCP tool servers (cost_server; later …)     [✓ cost]
 │   ├── services/       # A2A servers: cost_agent, orchestrator (+helper) [✓ cost]
 │   ├── agents/         # agent builders + prompts                        [✓ cost]
+│   ├── steering/       # versioned .md playbooks (system prompts)        [✓]
+│   ├── skills/         # agent skills: <agent>/<skill>/SKILL.md (opt-in) [✓ Phase 11]
 │   ├── models/         # ModelRouter (Bedrock + fallback + preflight)    [✓]
 │   ├── workflow/       # scheduled digest DAG + delivery adapters        [ ]
 │   ├── format.py       # CLI table rendering                             [✓]
@@ -555,6 +600,7 @@ AWSFinOpsAgent/
 | **8. Remediation modes** | `artifacts` + `guarded_write` + audit | Confirmed action w/ audit entry | ✅ **Done** — artifact generator + allowlisted guarded actions (preview→single-use token→apply→audit); mode-gated CLI (`fix`, `action`) + API (`/fix`, `/actions/*`); verified guard + bad-token rejection (no real mutation; apply path mock-tested) |
 | **9. Org/multi-account** | assume-role fan-out, per-account split | Per-linked-account costs | ✅ **Done** — OrgResolver (list accounts, id→name, assume-role); cost-by-account name-enriched (CLI/API/cost-tier); verified live on a real Organizations payer (3 accounts: invincible/Audit/Log Archive) |
 | **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests | ✅ **Done** — sandbox + IAM landed earlier; this phase adds the AWS-API meter (CE-spend estimate, /metrics), `finops accuracy` reconciliation (live PASS: Δ $2e-06), structured logging |
+| **11. Agent skills** | `AgentSkills` plugin wired into all four agents (cost/optimize/anomaly/devsecops), per-agent skill folders, skills-dir-scoped reader, opt-in config + CLI flag + dashboard toggle | Default-off no-op; skills discovered + threaded when enabled; reader rejects path-escape | ✅ **Done** — `finops_core/skills` + `devops_core/skills`; 4 seed skills; enable via `skills.enabled`/`FINOPS_SKILLS`/`--skills`/sidebar toggle; `docs/SKILLS.md`; 29 unit tests (165 total green) |
 
 ### Phase-1 verification evidence (2026-06-19)
 - **Numbers reconcile against live Cost Explorer**: `by-service` total == `summary` total

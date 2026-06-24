@@ -84,6 +84,7 @@ class Config:
     llm: LlmConfig = field(default_factory=LlmConfig)
     guardrails: GuardrailsConfig = field(default_factory=GuardrailsConfig)
     cache_ttl_seconds: int = 3600
+    skills_enabled: bool = False     # agent skills (progressive disclosure); opt-in, off by default
 
     # ---- loading -------------------------------------------------------
     @classmethod
@@ -99,6 +100,7 @@ class Config:
         cfg = cls()
         cfg.mode = data.get("mode", cfg.mode)
         cfg.cache_ttl_seconds = (data.get("cache") or {}).get("ttl_seconds", cfg.cache_ttl_seconds)
+        cfg.skills_enabled = bool((data.get("skills") or {}).get("enabled", cfg.skills_enabled))
 
         aws = data.get("aws") or {}
         cfg.aws = AwsConfig(
@@ -148,6 +150,7 @@ class Config:
 
     def _apply_env_overrides(self) -> None:
         self.mode = os.getenv("FINOPS_MODE", self.mode)
+        self.skills_enabled = _env_bool("FINOPS_SKILLS", self.skills_enabled)
 
         self.aws.auth = os.getenv("FINOPS_AWS_AUTH", self.aws.auth)
         self.aws.profile = _first_env("FINOPS_AWS_PROFILE", "AWS_PROFILE") or self.aws.profile
@@ -202,4 +205,5 @@ class Config:
             },
             "guardrails": vars(self.guardrails),
             "cache_ttl_seconds": self.cache_ttl_seconds,
+            "skills_enabled": self.skills_enabled,
         }

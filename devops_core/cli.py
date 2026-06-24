@@ -42,6 +42,8 @@ def _build_parser() -> argparse.ArgumentParser:
     ak.add_argument("--config", default=None)
     ak.add_argument("--regions", default=None)
     ak.add_argument("--remote", default=None, metavar="URL", help="call a remote A2A devops-agent")
+    ak.add_argument("--skills", action=argparse.BooleanOptionalAction, default=None,
+                    help="enable/disable agent skills for this question (default: config / FINOPS_SKILLS)")
 
     rv = sub.add_parser("review", help="review a resource for best-practice optimizations")
     rv.add_argument("service", help="lambda | ec2 | rds | s3 | ... (inferred from an ARN)")
@@ -281,7 +283,8 @@ def _run_ask(args) -> int:
         idx = EstateIndex(session, cfg, regions=regions)
         tools = (build_estate_tools(index=idx) + build_diagram_tools(session, cfg, index=idx)
                  + build_review_tools(session, cfg) + build_diagnose_tools(session, cfg))
-        agent = build_estate_agent(cfg=cfg, session=session, callback_handler=None, tools=tools)
+        agent = build_estate_agent(cfg=cfg, session=session, callback_handler=None, tools=tools,
+                                   skills=getattr(args, "skills", None))
     except ImportError:
         print("[error] the agent needs Strands: pip install -e '.[agent]'")
         return 2

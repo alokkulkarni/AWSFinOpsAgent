@@ -16,6 +16,9 @@ llm:
   region: us-east-1            # Bedrock runtime region
   roles: {}                    # per-role overrides; canonical IDs live in config/models.yaml
 
+skills:
+  enabled: false               # agent skills (progressive disclosure); opt-in. Env: FINOPS_SKILLS
+
 cache:
   ttl_seconds: 3600
 

@@ -20,7 +20,8 @@ def _scan(regions_tuple):
 
 
 @st.cache_resource(show_spinner=False)
-def _agent(regions_tuple):
+def _agent(regions_tuple, skills_on=False):
+    # skills_on is part of the cache key so toggling it in the sidebar rebuilds the agent.
     from devops_core.agents.estate import build_estate_agent
     from devops_core.discovery.index import EstateIndex
     from devops_core.tools.diagnose_tool import build_diagnose_tools
@@ -33,7 +34,7 @@ def _agent(regions_tuple):
     # posture (FINOPS_MODE), which the page exports from the sidebar selector before each turn.
     tools = (build_estate_tools(index=idx) + build_diagram_tools(index=idx)
              + build_review_tools(cfg=cfg) + build_diagnose_tools())
-    return build_estate_agent(cfg=cfg, callback_handler=None, tools=tools)
+    return build_estate_agent(cfg=cfg, callback_handler=None, tools=tools, skills=skills_on)
 
 
 def _render_chat_diagram(d: dict, key: str):
@@ -107,6 +108,11 @@ def render():
     with st.sidebar:
         regions_raw = st.text_input("Regions (comma; blank = all enabled)", value="eu-west-2,us-east-1")
         group_by = st.selectbox("Diagram grouping", ["region", "account"])
+        st.session_state["skills"] = st.checkbox(
+            "Agent skills (beta)", value=st.session_state.get("skills", Config.load().skills_enabled),
+            key="skills_select_devops",
+            help="Progressive-disclosure playbooks (e.g. incident-triage runbook) for the estate agent.",
+        )
     regions_tuple = tuple(r.strip() for r in regions_raw.split(",") if r.strip())
 
     try:
@@ -212,7 +218,7 @@ def render():
         _diag.clear()
         try:
             with st.spinner("Thinking…"):
-                text = str(_agent(regions_tuple)(q)).strip()
+                text = str(_agent(regions_tuple, st.session_state.get("skills", False))(q)).strip()
         except Exception as e:
             text = f"(agent unavailable: {e})"
         diagram = _diag.last_diagram()
