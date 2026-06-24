@@ -6,6 +6,7 @@ from typing import Optional
 
 from finops_core.config import Config
 from finops_core.models.router import ModelRouter
+from finops_core.skills import COST_SKILLS_DIR, attach_skills, skills_active
 from finops_core.tools.cost import build_cost_tools
 
 _DEFAULT = object()  # sentinel: leave Strands' default (streaming) callback handler in place
@@ -20,6 +21,7 @@ def build_cost_agent(
     name: str = "Cost-Analysis Agent",
     description: Optional[str] = None,
     hooks=None,
+    skills: Optional[bool] = None,
 ):
     """Construct the Cost-Analysis agent bound to the resolved model.
 
@@ -27,6 +29,8 @@ def build_cost_agent(
            resolved from the cost-tools server) to run distributed.
     callback_handler=None suppresses token streaming (CLI/A2A print the final answer once).
     name/description populate the A2A agent card when served as a sub-agent.
+    skills: None → use cfg.skills_enabled (default off); True/False to force. When on, the
+            cost skills (progressive disclosure) + a skills-scoped file reader are attached.
     """
     from strands import Agent  # lazy import: requires the `agent` extra
 
@@ -39,6 +43,7 @@ def build_cost_agent(
         tools = build_cost_tools(session, cfg)
     if hooks is None:
         hooks = default_hooks(cfg)
+    tools, skill_kwargs = attach_skills(tools, COST_SKILLS_DIR, enabled=skills_active(cfg, skills))
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
         model=router.for_role("cost"),
@@ -49,5 +54,6 @@ def build_cost_agent(
         system_prompt=COST_ANALYSIS_PROMPT,
         tools=tools,
         hooks=hooks,
+        **skill_kwargs,
         **kwargs,
     )

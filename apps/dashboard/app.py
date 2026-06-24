@@ -34,9 +34,10 @@ st.set_page_config(page_title="AWS FinOps Agent", page_icon="💰", layout="wide
 
 
 def mode_cfg() -> Config:
-    """Config with the action mode chosen in the sidebar (runtime override, no restart)."""
+    """Config with the action mode + skills toggle chosen in the sidebar (runtime override)."""
     c = Config.load()
     c.mode = st.session_state.get("mode", c.mode)
+    c.skills_enabled = st.session_state.get("skills", c.skills_enabled)
     return c
 
 PERIODS = ["mtd", "last_month", "ytd", "30d", "90d", "3m", "6m", "12m"]
@@ -96,6 +97,12 @@ with st.sidebar:
              "guarded_write: apply allowlisted, confirmed actions",
     )
     st.session_state["mode"] = mode
+    skills_on = st.checkbox(
+        "Agent skills (beta)", value=st.session_state.get("skills", cfg.skills_enabled),
+        key="skills_select",
+        help="Progressive-disclosure playbooks (drill-down, savings, anomaly triage) for the chat agent.",
+    )
+    st.session_state["skills"] = skills_on
     if mode == "guarded_write":
         st.warning("guarded_write can modify your AWS account (allowlisted + confirmed).")
     elif mode == "artifacts":
@@ -309,9 +316,12 @@ st.caption("Questions are routed deterministically (cost / optimize / anomaly) t
 
 
 @st.cache_resource(show_spinner=False)
-def get_router():
+def get_router(skills_enabled: bool = False):
+    # skills_enabled is part of the cache key so toggling it rebuilds the specialists.
     from finops_core.router import IntentRouter
-    return IntentRouter(Config.load())
+    c = Config.load()
+    c.skills_enabled = skills_enabled
+    return IntentRouter(c)
 
 
 if "chat" not in st.session_state:
@@ -324,7 +334,7 @@ if q := st.chat_input("e.g. why did EC2 jump last week? / find savings / am I ov
     st.chat_message("user").write(q)
     try:
         with st.spinner("Thinking…"):
-            intent, answer = get_router().answer(q)
+            intent, answer = get_router(st.session_state.get("skills", False)).answer(q)
         text = f"*(routed to the **{intent}** specialist)*\n\n{answer}"
     except Exception as e:
         text = f"(agent unavailable: {e})"

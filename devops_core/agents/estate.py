@@ -11,11 +11,13 @@ _DEFAULT = object()
 
 def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_handler=_DEFAULT,
                        tools=None, hooks=None, name: str = "DevOps Estate Agent",
-                       description: Optional[str] = None):
+                       description: Optional[str] = None, skills: Optional[bool] = None):
     from strands import Agent
 
     from finops_core.hooks import default_hooks
+    from finops_core.skills import attach_skills, skills_active
     from devops_core.discovery.index import EstateIndex
+    from devops_core.skills import ESTATE_SKILLS_DIR
     from devops_core.steering import load_steering
     from devops_core.tools.diagnose_tool import build_diagnose_tools  # noqa: F401  (see below)
     from devops_core.tools.diagram_tool import build_diagram_tools
@@ -31,6 +33,9 @@ def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_hand
                  + build_diagnose_tools(session, cfg))
     if hooks is None:
         hooks = default_hooks(cfg)
+    tools, skill_kwargs = attach_skills(
+        tools, ESTATE_SKILLS_DIR, enabled=skills_active(cfg, skills)
+    )
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
         model=ModelRouter(cfg, session).for_role("devops"),
@@ -41,5 +46,6 @@ def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_hand
         system_prompt=load_steering("devops"),
         tools=tools,
         hooks=hooks,
+        **skill_kwargs,
         **kwargs,
     )

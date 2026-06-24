@@ -5,6 +5,7 @@ from typing import Optional
 
 from finops_core.config import Config
 from finops_core.models.router import ModelRouter
+from finops_core.skills import ANOMALY_SKILLS_DIR, attach_skills, skills_active
 from finops_core.tools.anomaly import build_anomaly_tools
 
 _DEFAULT = object()
@@ -19,6 +20,7 @@ def build_anomaly_agent(
     name: str = "Anomaly & Budget Agent",
     description: Optional[str] = None,
     hooks=None,
+    skills: Optional[bool] = None,
 ):
     from strands import Agent
 
@@ -31,6 +33,9 @@ def build_anomaly_agent(
         tools = build_anomaly_tools(session, cfg)
     if hooks is None:
         hooks = default_hooks(cfg)
+    tools, skill_kwargs = attach_skills(
+        tools, ANOMALY_SKILLS_DIR, enabled=skills_active(cfg, skills)
+    )
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
         model=router.for_role("cost"),
@@ -39,5 +44,6 @@ def build_anomaly_agent(
         system_prompt=ANOMALY_PROMPT,
         tools=tools,
         hooks=hooks,
+        **skill_kwargs,
         **kwargs,
     )
