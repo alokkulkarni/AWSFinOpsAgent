@@ -35,7 +35,11 @@ devops = "devops_core.cli:main"
 include = ["finops_core*", "devops_core*", "apps*"]
 
 [tool.setuptools.package-data]
-finops_core = ["steering/*.md"]
+# Steering playbooks + agent skills (SKILL.md + references) must ship in the wheel — they are
+# loaded at runtime via Path(__file__) and are NOT importable code. ** recurses skill subdirs;
+# extend the globs if a skill adds non-.md assets (scripts/, assets/).
+finops_core = ["steering/*.md", "skills/**/*.md"]
+devops_core = ["steering/*.md", "skills/**/*.md"]
 
 [tool.ruff]
 line-length = 100
