@@ -8,9 +8,20 @@
 #   Option B (agents):  http://localhost:8090/mcp  (ask_finops)   http://localhost:8095/mcp  (ask_devops)
 #   Option A (tools):   http://localhost:8081/mcp  (cost)  :8082 (optimize)  :8083 (anomaly)  :8085 (devops)
 #
-# Credentials: finops servers use the `finops` profile, devops servers the `devops` profile —
-# both read from the mounted ~/.aws (create them with scripts/setup_{finops,devops}_iam.sh).
-# Base posture stays read-only (advisory); the tool servers are otherwise host-internal (expose).
+# Connector mode (default for tool servers):
+#   Tool servers accept AWS credentials via X-Aws-* request headers so each user can
+#   supply their own credentials when adding the server as a connector in their IDE or
+#   in Claude.ai — no server-side profile or ~/.aws mount is needed.
+#
+#   Headers: X-Aws-Access-Key-Id, X-Aws-Secret-Access-Key, X-Aws-Session-Token (optional),
+#            X-Aws-Region (optional)
+#
+# Server-side credentials (local dev / Docker stack):
+#   If no X-Aws-* headers are present the servers fall back to build_session() which reads
+#   ~/.aws (mounted read-only) or env vars. Set AWS_PROFILE in your .env to choose a profile.
+#
+# Agent servers (finops-ask / devops-ask) always need a server-side profile for Bedrock LLM
+# calls — set AWS_PROFILE=finops / devops (or a profile with Bedrock invoke permission).
 
 x-mcp-base: &mcp-base
   build: .
@@ -24,21 +35,23 @@ x-mcp-base: &mcp-base
   restart: unless-stopped
 
 services:
-  # --- Option A: publish the existing tool servers on the host (merges ports + profile in) ---
+  # --- Option A: publish the existing tool servers on the host ---
+  # Credentials come from X-Aws-* request headers (connector mode).
+  # For local dev with server-side creds, set AWS_PROFILE in .env.
   cost-tools:
     ports: ["8081:8081"]
-    environment: { AWS_PROFILE: finops }
+
   optimize-tools:
     ports: ["8082:8082"]
-    environment: { AWS_PROFILE: finops }
+
   anomaly-tools:
     ports: ["8083:8083"]
-    environment: { AWS_PROFILE: finops }
+
   devops-tools:
     ports: ["8085:8085"]
-    environment: { AWS_PROFILE: devops }
 
   # --- Option B: the agent ("ask") MCP servers over HTTP ---
+  # These servers make Bedrock LLM calls and therefore need a server-side AWS profile.
   finops-ask:
     <<: *mcp-base
     environment:
