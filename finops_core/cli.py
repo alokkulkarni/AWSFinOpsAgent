@@ -7,8 +7,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Optional
+
+# Distributed services runnable via `finops serve <name>`. MCP tool servers + the agent-as-MCP
+# server (`ask` → ask_finops, for IDE clients) + the A2A agent/orchestrator servers.
+_SERVERS = {
+    "cost-tools": "finops_core.mcp_servers.cost_server",
+    "optimize-tools": "finops_core.mcp_servers.optimize_server",
+    "anomaly-tools": "finops_core.mcp_servers.anomaly_server",
+    "ask": "finops_core.mcp_servers.agent_server",          # MCP: ask_finops (IDE entrypoint)
+    "cost-agent": "finops_core.services.cost_agent_server",
+    "optimize-agent": "finops_core.services.optimize_agent_server",
+    "anomaly-agent": "finops_core.services.anomaly_agent_server",
+    "orchestrator": "finops_core.services.orchestrator_server",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -155,9 +169,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # serve — run a distributed service (used as the container command)
     srv = sub.add_parser("serve", help="run a distributed service (MCP tool / A2A agent server)")
-    srv.add_argument("service", choices=["cost-tools", "cost-agent", "orchestrator",
-                                         "optimize-tools", "optimize-agent",
-                                         "anomaly-tools", "anomaly-agent"])
+    srv.add_argument("service", choices=list(_SERVERS))
+    srv.add_argument("--stdio", action="store_true",
+                     help="run the MCP server over stdio (for IDE clients: Claude Code/Cursor/VS Code)")
 
     return parser
 
@@ -570,17 +584,10 @@ def main(argv: Optional[list] = None) -> int:
     if cmd == "anomaly":
         return _run_anomaly(args)
     if cmd == "serve":
-        servers = {
-            "cost-tools": "finops_core.mcp_servers.cost_server",
-            "cost-agent": "finops_core.services.cost_agent_server",
-            "orchestrator": "finops_core.services.orchestrator_server",
-            "optimize-tools": "finops_core.mcp_servers.optimize_server",
-            "optimize-agent": "finops_core.services.optimize_agent_server",
-            "anomaly-tools": "finops_core.mcp_servers.anomaly_server",
-            "anomaly-agent": "finops_core.services.anomaly_agent_server",
-        }
+        if getattr(args, "stdio", False):
+            os.environ["FINOPS_MCP_TRANSPORT"] = "stdio"  # picked up by run_mcp
         import importlib
-        importlib.import_module(servers[args.service]).main()
+        importlib.import_module(_SERVERS[args.service]).main()
         return 0
 
     parser.print_help()

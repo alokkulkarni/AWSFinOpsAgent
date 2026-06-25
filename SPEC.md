@@ -424,6 +424,21 @@ controls **which tools are registered** and **which IAM policy** is expected.
 - Streamlit consumes the same tool layer in-process (no network hop) for low latency; the
   REST API is for external integration.
 
+### 10.3 IDE integration (MCP)  ✅ *Phase 14 — Claude Code / Cursor / VS Code over MCP.*
+The agents plug into any MCP-capable editor — no Streamlit needed; the editor's own model calls
+our servers as tools. Two surfaces, both shipped:
+- **Agents (high-level):** `finops serve ask` / `devops serve ask` expose one tool each
+  (`ask_finops` / `ask_devops`) that runs the routed specialist / estate agent (steering + skills +
+  memory). `finops_core/mcp_servers/agent_server.py`, `devops_core/mcp_servers/agent_server.py`.
+- **Tools (granular):** the existing `cost-tools`/`optimize-tools`/`anomaly-tools`/`devops-tools`
+  MCP servers (the editor model orchestrates individual deterministic tools).
+
+All servers gain a `--stdio` transport (`finops_core/mcp_servers/_runtime.py::run_mcp`, selected by
+`FINOPS_MCP_TRANSPORT`) so the editor can spawn them locally; banners go to stderr (stdout is the
+MCP channel). The same servers still run Streamable HTTP for the Docker stack. Checked-in configs:
+`.mcp.json` (Claude Code), `.cursor/mcp.json` (Cursor), `.vscode/mcp.json` (VS Code). Read-only
+posture + `ReadOnlyGuard` apply unchanged. Guide: `docs/IDE_INTEGRATION.md`.
+
 ---
 
 ## 11. Scheduled Digest (Workflow)  ✅ *Phase 7 — `finops_core/workflow/`: `gather()` runs the independent sections in parallel (ThreadPoolExecutor = the DAG), renders md/html/json deterministically, optional `digest`-model narrative; `delivery.py` = file/Slack/SNS/SES. Surfaces: `finops digest`, `POST /report/digest`, one-shot `digest` compose service (cron/EventBridge).*

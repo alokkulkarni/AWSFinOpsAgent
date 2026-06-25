@@ -27,7 +27,9 @@ dist/
 .DS_Store
 *.log
 .idea/
-.vscode/
+# checked in: .vscode/mcp.json (MCP server config for VS Code / Copilot agent mode)
+.vscode/*
+!.vscode/mcp.json
 
 # --- Local artifacts ---
 audit/

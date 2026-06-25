@@ -3,8 +3,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Optional
+
+# Services runnable via `devops serve <name>`: the estate MCP tool server, the agent-as-MCP server
+# (`ask` → ask_devops, for IDE clients), and the A2A estate agent.
+_SERVERS = {
+    "devops-tools": "devops_core.mcp_servers.estate_server",
+    "ask": "devops_core.mcp_servers.agent_server",     # MCP: ask_devops (IDE entrypoint)
+    "devops-agent": "devops_core.services.estate_agent_server",
+}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -68,7 +77,9 @@ def _build_parser() -> argparse.ArgumentParser:
     dn.add_argument("--json", action="store_true")
 
     sv = sub.add_parser("serve", help="run a distributed DevOps service")
-    sv.add_argument("service", choices=["devops-tools", "devops-agent"])
+    sv.add_argument("service", choices=list(_SERVERS))
+    sv.add_argument("--stdio", action="store_true",
+                    help="run the MCP server over stdio (for IDE clients: Claude Code/Cursor/VS Code)")
     return parser
 
 
@@ -329,10 +340,10 @@ def main(argv: Optional[list] = None) -> int:
     if args.cmd == "diagnose":
         return _run_diagnose(args)
     if args.cmd == "serve":
+        if getattr(args, "stdio", False):
+            os.environ["FINOPS_MCP_TRANSPORT"] = "stdio"  # picked up by run_mcp
         import importlib
-        mod = {"devops-tools": "devops_core.mcp_servers.estate_server",
-               "devops-agent": "devops_core.services.estate_agent_server"}[args.service]
-        importlib.import_module(mod).main()
+        importlib.import_module(_SERVERS[args.service]).main()
         return 0
     parser.print_help()
     return 1

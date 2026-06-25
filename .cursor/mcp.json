@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "finops-ask": {
+      "command": "finops",
+      "args": ["serve", "ask", "--stdio"],
+      "env": { "AWS_PROFILE": "finops", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+    },
+    "devops-ask": {
+      "command": "devops",
+      "args": ["serve", "ask", "--stdio"],
+      "env": { "AWS_PROFILE": "devops", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+    },
+    "finops-cost-tools": {
+      "command": "finops",
+      "args": ["serve", "cost-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "finops", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+    },
+    "finops-optimize-tools": {
+      "command": "finops",
+      "args": ["serve", "optimize-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "finops", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+    },
+    "finops-anomaly-tools": {
+      "command": "finops",
+      "args": ["serve", "anomaly-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "finops", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+    },
+    "devops-tools": {
+      "command": "devops",
+      "args": ["serve", "devops-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "devops", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+    }
+  }
+}

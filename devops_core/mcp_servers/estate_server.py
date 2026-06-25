@@ -59,9 +59,8 @@ def get_topology(region: str) -> dict:
 
 
 def main() -> None:
-    print(f"[devops-tools] MCP streamable-http on "
-          f"{mcp.settings.host}:{mcp.settings.port}{mcp.settings.streamable_http_path}")
-    mcp.run(transport="streamable-http")
+    from finops_core.mcp_servers._runtime import run_mcp
+    run_mcp(mcp, "devops-tools")
 
 
 if __name__ == "__main__":
