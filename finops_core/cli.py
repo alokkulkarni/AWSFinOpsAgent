@@ -104,6 +104,11 @@ def _build_parser() -> argparse.ArgumentParser:
                      metavar="URL", help="call a remote A2A agent (e.g. http://localhost:9000)")
     ask.add_argument("--skills", action=argparse.BooleanOptionalAction, default=None,
                      help="enable/disable agent skills for this question (default: config / FINOPS_SKILLS)")
+    ask.add_argument("--memory", action=argparse.BooleanOptionalAction, default=None,
+                     help="enable/disable persistent agent memory (default: config / FINOPS_MEMORY)")
+    ask.add_argument("--summarize", action=argparse.BooleanOptionalAction, default=None,
+                     help="enable/disable conversation summarization (default: config / "
+                          "FINOPS_CONVERSATION_SUMMARIZE)")
 
     # accuracy — reconcile tool-layer numbers against a raw Cost Explorer query
     ac = sub.add_parser("accuracy", help="verify tool numbers match raw Cost Explorer (+ API meter)")
@@ -419,7 +424,9 @@ def _run_ask(args) -> int:
         from finops_core.agents.cost import build_cost_agent
         # callback_handler=None: suppress token streaming so we print the answer once
         agent = build_cost_agent(build_session(cfg), cfg, callback_handler=None,
-                                 skills=getattr(args, "skills", None))
+                                 skills=getattr(args, "skills", None),
+                                 memory=getattr(args, "memory", None),
+                                 conversation=getattr(args, "summarize", None))
     except ImportError:
         print("[error] the agent requires Strands. Install with: pip install -e '.[agent]'")
         return 2

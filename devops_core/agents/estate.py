@@ -11,9 +11,11 @@ _DEFAULT = object()
 
 def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_handler=_DEFAULT,
                        tools=None, hooks=None, name: str = "DevOps Estate Agent",
-                       description: Optional[str] = None, skills: Optional[bool] = None):
+                       description: Optional[str] = None, skills: Optional[bool] = None,
+                       conversation: Optional[bool] = None, memory: Optional[bool] = None):
     from strands import Agent
 
+    from finops_core.agent_context import agent_context_kwargs
     from finops_core.hooks import default_hooks
     from finops_core.skills import attach_skills, skills_active
     from devops_core.discovery.index import EstateIndex
@@ -25,6 +27,7 @@ def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_hand
     from devops_core.tools.review_tool import build_review_tools
 
     cfg = cfg or Config.load()
+    router = ModelRouter(cfg, session)
     if tools is None:
         index = EstateIndex(session, cfg)  # shared so diagrams reuse the scanned estate
         tools = (build_estate_tools(session, cfg, index=index)
@@ -36,9 +39,12 @@ def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_hand
     tools, skill_kwargs = attach_skills(
         tools, ESTATE_SKILLS_DIR, enabled=skills_active(cfg, skills)
     )
+    ctx_kwargs = agent_context_kwargs(
+        cfg, "devops", router=router, conversation=conversation, memory=memory
+    )
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
-        model=ModelRouter(cfg, session).for_role("devops"),
+        model=router.for_role("devops"),
         name=name,
         description=description or (
             "Answers questions about the AWS estate: components, services, resources, topology."
@@ -47,5 +53,6 @@ def build_estate_agent(session=None, cfg: Optional[Config] = None, callback_hand
         tools=tools,
         hooks=hooks,
         **skill_kwargs,
+        **ctx_kwargs,
         **kwargs,
     )
