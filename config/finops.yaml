@@ -19,6 +19,20 @@ llm:
 skills:
   enabled: false               # agent skills (progressive disclosure); opt-in. Env: FINOPS_SKILLS
 
+conversation:                  # context-rot control — summarize old turns instead of dropping them
+  summarize: true              # ON by default. Env: FINOPS_CONVERSATION_SUMMARIZE
+  preserve_recent: 10          # most-recent turns kept verbatim (never summarized)
+  summary_ratio: 0.3           # fraction of removable history folded into the running summary
+  proactive_threshold: 0.7     # compress at this context-window usage; <=0 → only on overflow
+  summarizer_role: null        # model role to summarize with (null = the agent's own model)
+
+memory:                        # persistent, cross-session recall of "important aspects"
+  enabled: true                # ON by default. Env: FINOPS_MEMORY
+  dir: ~/.finops_agent/memory  # persisted locally, OUTSIDE the repo. Env: FINOPS_MEMORY_DIR
+  max_search_results: 5        # entries injected/returned per recall
+  auto_extract: true           # LLM distills salient facts each interval (capture)
+  allow_write_tool: true       # also expose an explicit "remember this" tool to the agent
+
 cache:
   ttl_seconds: 3600
 

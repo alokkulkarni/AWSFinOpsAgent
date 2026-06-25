@@ -20,8 +20,8 @@ def _scan(regions_tuple):
 
 
 @st.cache_resource(show_spinner=False)
-def _agent(regions_tuple, skills_on=False):
-    # skills_on is part of the cache key so toggling it in the sidebar rebuilds the agent.
+def _agent(regions_tuple, skills_on=False, memory_on=True, summarize_on=True):
+    # The toggles are part of the cache key so flipping them in the sidebar rebuilds the agent.
     from devops_core.agents.estate import build_estate_agent
     from devops_core.discovery.index import EstateIndex
     from devops_core.tools.diagnose_tool import build_diagnose_tools
@@ -34,7 +34,8 @@ def _agent(regions_tuple, skills_on=False):
     # posture (FINOPS_MODE), which the page exports from the sidebar selector before each turn.
     tools = (build_estate_tools(index=idx) + build_diagram_tools(index=idx)
              + build_review_tools(cfg=cfg) + build_diagnose_tools())
-    return build_estate_agent(cfg=cfg, callback_handler=None, tools=tools, skills=skills_on)
+    return build_estate_agent(cfg=cfg, callback_handler=None, tools=tools, skills=skills_on,
+                              memory=memory_on, conversation=summarize_on)
 
 
 def _render_chat_diagram(d: dict, key: str):
@@ -108,10 +109,23 @@ def render():
     with st.sidebar:
         regions_raw = st.text_input("Regions (comma; blank = all enabled)", value="eu-west-2,us-east-1")
         group_by = st.selectbox("Diagram grouping", ["region", "account"])
+        _dcfg = Config.load()
         st.session_state["skills"] = st.checkbox(
-            "Agent skills (beta)", value=st.session_state.get("skills", Config.load().skills_enabled),
+            "Agent skills (beta)", value=st.session_state.get("skills", _dcfg.skills_enabled),
             key="skills_select_devops",
             help="Progressive-disclosure playbooks (e.g. incident-triage runbook) for the estate agent.",
+        )
+        st.session_state["memory"] = st.checkbox(
+            "Conversation memory", value=st.session_state.get("memory", _dcfg.memory.enabled),
+            key="memory_select_devops",
+            help="Remember durable estate facts and recall them in future questions. "
+                 "Stored locally; account IDs redacted.",
+        )
+        st.session_state["summarize"] = st.checkbox(
+            "Summarize long chats",
+            value=st.session_state.get("summarize", _dcfg.conversation.summarize),
+            key="summarize_select_devops",
+            help="Summarize older turns so the chat context stays bounded (avoids context rot).",
         )
     regions_tuple = tuple(r.strip() for r in regions_raw.split(",") if r.strip())
 
@@ -218,7 +232,12 @@ def render():
         _diag.clear()
         try:
             with st.spinner("Thinking…"):
-                text = str(_agent(regions_tuple, st.session_state.get("skills", False))(q)).strip()
+                text = str(_agent(
+                    regions_tuple,
+                    st.session_state.get("skills", False),
+                    st.session_state.get("memory", True),
+                    st.session_state.get("summarize", True),
+                )(q)).strip()
         except Exception as e:
             text = f"(agent unavailable: {e})"
         diagram = _diag.last_diagram()

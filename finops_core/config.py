@@ -95,12 +95,43 @@ class TelemetryConfig:
 
 
 @dataclass
+class ConversationConfig:
+    """Context-rot control: summarize old turns instead of dropping them.
+
+    Wired into every long-lived agent via ``finops_core.conversation``. ON by default so the
+    chat context never grows unbounded (rising cost/latency, eventual context-window overflow).
+    """
+    summarize: bool = True            # False → Strands default sliding-window (lossy trim)
+    preserve_recent: int = 10         # most-recent turns kept verbatim (never summarized)
+    summary_ratio: float = 0.3        # fraction of removable history folded into a summary
+    proactive_threshold: float = 0.7  # compress at this context-window usage; <=0 → reactive-only
+    summarizer_role: Optional[str] = None  # model role for summarizing (None → the agent's model)
+
+
+@dataclass
+class MemoryConfig:
+    """Persistent, cross-session agent memory (recall + capture of 'important aspects').
+
+    ON by default. Stored locally (no infra) under ``dir``; account IDs are redacted on write
+    (honoring ``guardrails.redact_account_ids``). Capture = both auto-extraction and an explicit
+    'remember' tool; recall is auto-injected into new prompts.
+    """
+    enabled: bool = True
+    dir: str = "~/.finops_agent/memory"   # outside the repo by default (secrets hygiene)
+    max_search_results: int = 5
+    auto_extract: bool = True             # LLM distills salient facts each interval
+    allow_write_tool: bool = True         # expose an explicit 'remember this' tool to the agent
+
+
+@dataclass
 class Config:
     mode: str = "advisory"           # advisory | artifacts | guarded_write
     aws: AwsConfig = field(default_factory=AwsConfig)
     llm: LlmConfig = field(default_factory=LlmConfig)
     guardrails: GuardrailsConfig = field(default_factory=GuardrailsConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
+    conversation: ConversationConfig = field(default_factory=ConversationConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
     cache_ttl_seconds: int = 3600
     skills_enabled: bool = False     # agent skills (progressive disclosure); opt-in, off by default
 
@@ -177,6 +208,26 @@ class Config:
             content=t.get("content", cfg.telemetry.content),
         )
 
+        conv = data.get("conversation") or {}
+        cfg.conversation = ConversationConfig(
+            summarize=bool(conv.get("summarize", cfg.conversation.summarize)),
+            preserve_recent=int(conv.get("preserve_recent", cfg.conversation.preserve_recent)),
+            summary_ratio=float(conv.get("summary_ratio", cfg.conversation.summary_ratio)),
+            proactive_threshold=float(
+                conv.get("proactive_threshold", cfg.conversation.proactive_threshold)
+            ),
+            summarizer_role=conv.get("summarizer_role", cfg.conversation.summarizer_role),
+        )
+
+        mem = data.get("memory") or {}
+        cfg.memory = MemoryConfig(
+            enabled=bool(mem.get("enabled", cfg.memory.enabled)),
+            dir=mem.get("dir", cfg.memory.dir),
+            max_search_results=int(mem.get("max_search_results", cfg.memory.max_search_results)),
+            auto_extract=bool(mem.get("auto_extract", cfg.memory.auto_extract)),
+            allow_write_tool=bool(mem.get("allow_write_tool", cfg.memory.allow_write_tool)),
+        )
+
         cfg._apply_env_overrides()
         return cfg
 
@@ -229,6 +280,18 @@ class Config:
             self.telemetry.sample_ratio = float(os.environ["FINOPS_TELEMETRY_SAMPLE_RATIO"])
         self.telemetry.content = os.getenv("FINOPS_TELEMETRY_CONTENT", self.telemetry.content)
 
+        self.conversation.summarize = _env_bool(
+            "FINOPS_CONVERSATION_SUMMARIZE", self.conversation.summarize
+        )
+        if os.getenv("FINOPS_CONVERSATION_PRESERVE_RECENT"):
+            self.conversation.preserve_recent = int(os.environ["FINOPS_CONVERSATION_PRESERVE_RECENT"])
+        self.conversation.summarizer_role = os.getenv(
+            "FINOPS_SUMMARIZER_ROLE", self.conversation.summarizer_role
+        )
+
+        self.memory.enabled = _env_bool("FINOPS_MEMORY", self.memory.enabled)
+        self.memory.dir = os.getenv("FINOPS_MEMORY_DIR", self.memory.dir)
+
     # ---- helpers -------------------------------------------------------
     def redacted(self) -> dict:
         """Config snapshot safe to print/log (no secrets; ARN account id masked)."""
@@ -262,6 +325,14 @@ class Config:
                     "metrics": self.telemetry.metrics,
                     "logs": self.telemetry.logs,
                 },
+            },
+            "conversation": vars(self.conversation),
+            "memory": {
+                # Path is omitted on purpose — it points at where sensitive context is persisted.
+                "enabled": self.memory.enabled,
+                "max_search_results": self.memory.max_search_results,
+                "auto_extract": self.memory.auto_extract,
+                "allow_write_tool": self.memory.allow_write_tool,
             },
             "cache_ttl_seconds": self.cache_ttl_seconds,
             "skills_enabled": self.skills_enabled,

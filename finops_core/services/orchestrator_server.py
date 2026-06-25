@@ -20,6 +20,7 @@ def main() -> None:
     from strands.multiagent.a2a import A2AServer
     from strands_tools.a2a_client import A2AClientToolProvider
 
+    from finops_core.agent_context import agent_context_kwargs
     from finops_core.agents.prompts import ORCHESTRATOR_PROMPT
 
     cfg = Config.load()
@@ -35,13 +36,18 @@ def main() -> None:
 
     # A2A client tools: discovery + delegation to known specialist agents.
     provider = A2AClientToolProvider(known_agent_urls=known)
+    router = ModelRouter(cfg)
+    # Long-lived process serving many turns → summarize old context + persist memory (both ON
+    # by default; configurable). Keeps the orchestrator's context bounded over its lifetime.
+    ctx_kwargs = agent_context_kwargs(cfg, "finops", router=router)
     agent = Agent(
-        model=ModelRouter(cfg).for_role("orchestrator"),
+        model=router.for_role("orchestrator"),
         name="FinOps Orchestrator",
         description="Routes AWS FinOps questions to specialist agents (cost, optimization, ...).",
         system_prompt=ORCHESTRATOR_PROMPT,
         tools=provider.tools,
         callback_handler=None,
+        **ctx_kwargs,
     )
 
     server = A2AServer(

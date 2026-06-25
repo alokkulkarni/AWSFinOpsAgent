@@ -22,6 +22,8 @@ def build_cost_agent(
     description: Optional[str] = None,
     hooks=None,
     skills: Optional[bool] = None,
+    conversation: Optional[bool] = None,
+    memory: Optional[bool] = None,
 ):
     """Construct the Cost-Analysis agent bound to the resolved model.
 
@@ -31,9 +33,12 @@ def build_cost_agent(
     name/description populate the A2A agent card when served as a sub-agent.
     skills: None → use cfg.skills_enabled (default off); True/False to force. When on, the
             cost skills (progressive disclosure) + a skills-scoped file reader are attached.
+    conversation/memory: None → config default (both ON); True/False force. Summarizes old turns
+            (context-rot fix) and gives the agent persistent, recallable memory.
     """
     from strands import Agent  # lazy import: requires the `agent` extra
 
+    from finops_core.agent_context import agent_context_kwargs
     from finops_core.agents.prompts import COST_ANALYSIS_PROMPT
     from finops_core.hooks import default_hooks
 
@@ -44,6 +49,9 @@ def build_cost_agent(
     if hooks is None:
         hooks = default_hooks(cfg)
     tools, skill_kwargs = attach_skills(tools, COST_SKILLS_DIR, enabled=skills_active(cfg, skills))
+    ctx_kwargs = agent_context_kwargs(
+        cfg, "finops", router=router, conversation=conversation, memory=memory
+    )
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
         model=router.for_role("cost"),
@@ -55,5 +63,6 @@ def build_cost_agent(
         tools=tools,
         hooks=hooks,
         **skill_kwargs,
+        **ctx_kwargs,
         **kwargs,
     )

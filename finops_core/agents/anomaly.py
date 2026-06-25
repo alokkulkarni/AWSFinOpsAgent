@@ -21,9 +21,12 @@ def build_anomaly_agent(
     description: Optional[str] = None,
     hooks=None,
     skills: Optional[bool] = None,
+    conversation: Optional[bool] = None,
+    memory: Optional[bool] = None,
 ):
     from strands import Agent
 
+    from finops_core.agent_context import agent_context_kwargs
     from finops_core.agents.prompts import ANOMALY_PROMPT
     from finops_core.hooks import default_hooks
 
@@ -36,6 +39,9 @@ def build_anomaly_agent(
     tools, skill_kwargs = attach_skills(
         tools, ANOMALY_SKILLS_DIR, enabled=skills_active(cfg, skills)
     )
+    ctx_kwargs = agent_context_kwargs(
+        cfg, "finops", router=router, conversation=conversation, memory=memory
+    )
     kwargs = {} if callback_handler is _DEFAULT else {"callback_handler": callback_handler}
     return Agent(
         model=router.for_role("cost"),
@@ -45,5 +51,6 @@ def build_anomaly_agent(
         tools=tools,
         hooks=hooks,
         **skill_kwargs,
+        **ctx_kwargs,
         **kwargs,
     )

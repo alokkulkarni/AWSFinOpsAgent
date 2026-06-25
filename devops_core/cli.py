@@ -44,6 +44,11 @@ def _build_parser() -> argparse.ArgumentParser:
     ak.add_argument("--remote", default=None, metavar="URL", help="call a remote A2A devops-agent")
     ak.add_argument("--skills", action=argparse.BooleanOptionalAction, default=None,
                     help="enable/disable agent skills for this question (default: config / FINOPS_SKILLS)")
+    ak.add_argument("--memory", action=argparse.BooleanOptionalAction, default=None,
+                    help="enable/disable persistent agent memory (default: config / FINOPS_MEMORY)")
+    ak.add_argument("--summarize", action=argparse.BooleanOptionalAction, default=None,
+                    help="enable/disable conversation summarization (default: config / "
+                         "FINOPS_CONVERSATION_SUMMARIZE)")
 
     rv = sub.add_parser("review", help="review a resource for best-practice optimizations")
     rv.add_argument("service", help="lambda | ec2 | rds | s3 | ... (inferred from an ARN)")
@@ -284,7 +289,9 @@ def _run_ask(args) -> int:
         tools = (build_estate_tools(index=idx) + build_diagram_tools(session, cfg, index=idx)
                  + build_review_tools(session, cfg) + build_diagnose_tools(session, cfg))
         agent = build_estate_agent(cfg=cfg, session=session, callback_handler=None, tools=tools,
-                                   skills=getattr(args, "skills", None))
+                                   skills=getattr(args, "skills", None),
+                                   memory=getattr(args, "memory", None),
+                                   conversation=getattr(args, "summarize", None))
     except ImportError:
         print("[error] the agent needs Strands: pip install -e '.[agent]'")
         return 2

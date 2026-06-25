@@ -35,3 +35,8 @@ reports/
 diagrams/
 *.parquet
 athena-output/
+
+# --- Agent memory (persisted context; default lives in ~/.finops_agent, outside the repo) ---
+.finops_agent/
+.agent_memory/
+*.memory.json
