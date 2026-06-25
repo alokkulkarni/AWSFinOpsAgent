@@ -1,0 +1,25 @@
+{
+  "$comment": "Claude Code MCP servers for the AWS FinOps + DevSecOps agents. Requires the project venv active so `finops`/`devops` are on PATH (pip install -e '.[agent]'). Edit AWS_PROFILE/AWS_REGION for your account. See docs/IDE_INTEGRATION.md.",
+  "mcpServers": {
+    "finops-ask": {
+      "command": "finops",
+      "args": ["serve", "ask", "--stdio"],
+      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+    },
+    "devops-ask": {
+      "command": "devops",
+      "args": ["serve", "ask", "--stdio"],
+      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+    },
+    "finops-cost-tools": {
+      "command": "finops",
+      "args": ["serve", "cost-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+    },
+    "devops-tools": {
+      "command": "devops",
+      "args": ["serve", "devops-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+    }
+  }
+}

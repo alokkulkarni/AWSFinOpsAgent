@@ -1,0 +1,28 @@
+{
+  "servers": {
+    "finops-ask": {
+      "type": "stdio",
+      "command": "finops",
+      "args": ["serve", "ask", "--stdio"],
+      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+    },
+    "devops-ask": {
+      "type": "stdio",
+      "command": "devops",
+      "args": ["serve", "ask", "--stdio"],
+      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+    },
+    "finops-cost-tools": {
+      "type": "stdio",
+      "command": "finops",
+      "args": ["serve", "cost-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+    },
+    "devops-tools": {
+      "type": "stdio",
+      "command": "devops",
+      "args": ["serve", "devops-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+    }
+  }
+}
