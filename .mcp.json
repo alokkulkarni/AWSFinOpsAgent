@@ -1,25 +1,35 @@
 {
-  "$comment": "Claude Code MCP servers for the AWS FinOps + DevSecOps agents. Requires the project venv active so `finops`/`devops` are on PATH (pip install -e '.[agent]'). Edit AWS_PROFILE/AWS_REGION for your account. See docs/IDE_INTEGRATION.md.",
+  "$comment": "Claude Code MCP servers for the AWS FinOps + DevSecOps agents. Pre-wired to the dedicated read-only profiles created by scripts/setup_finops_iam.sh (finops) and scripts/setup_devops_iam.sh (devops) — run those once and it works out of the box. Requires the project venv active so `finops`/`devops` are on PATH (pip install -e '.[agent]'). See docs/IDE_INTEGRATION.md.",
   "mcpServers": {
     "finops-ask": {
       "command": "finops",
       "args": ["serve", "ask", "--stdio"],
-      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+      "env": { "AWS_PROFILE": "finops", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
     },
     "devops-ask": {
       "command": "devops",
       "args": ["serve", "ask", "--stdio"],
-      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+      "env": { "AWS_PROFILE": "devops", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
     },
     "finops-cost-tools": {
       "command": "finops",
       "args": ["serve", "cost-tools", "--stdio"],
-      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_MODE": "advisory", "FINOPS_TELEMETRY": "0" }
+      "env": { "AWS_PROFILE": "finops", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+    },
+    "finops-optimize-tools": {
+      "command": "finops",
+      "args": ["serve", "optimize-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "finops", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+    },
+    "finops-anomaly-tools": {
+      "command": "finops",
+      "args": ["serve", "anomaly-tools", "--stdio"],
+      "env": { "AWS_PROFILE": "finops", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
     },
     "devops-tools": {
       "command": "devops",
       "args": ["serve", "devops-tools", "--stdio"],
-      "env": { "AWS_PROFILE": "default", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
+      "env": { "AWS_PROFILE": "devops", "AWS_REGION": "us-east-1", "FINOPS_TELEMETRY": "0" }
     }
   }
 }

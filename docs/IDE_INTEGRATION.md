@@ -28,9 +28,25 @@ pip install -e ".[agent]"     # puts `finops` and `devops` on PATH; the IDE conf
 ```
 The committed configs invoke `finops` / `devops`, so the **project virtualenv must be active** in
 the environment that launches your editor (or replace `command` with an absolute path to the venv's
-`finops`/`devops`). Set `AWS_PROFILE` / `AWS_REGION` in each server's `env` to match your account —
-a read-only profile is recommended (see `docs/IAM.md`). Servers default to `FINOPS_MODE=advisory`
-(read-only); the `ReadOnlyGuard` blocks writes unless you opt into `guarded_write`.
+`finops`/`devops`). Servers default to `FINOPS_MODE=advisory` (read-only); the `ReadOnlyGuard`
+blocks writes unless you opt into `guarded_write`.
+
+## Credentials (already wired)
+
+The configs are **pre-wired to dedicated, least-privilege profiles** — no per-account editing
+needed. Run the two setup scripts once (with credentials that can manage IAM); each creates a
+read-only IAM user + local `~/.aws` profile:
+
+```bash
+./scripts/setup_finops_iam.sh    # → profile `finops`  (billing/Cost Explorer read-only + Bedrock)
+./scripts/setup_devops_iam.sh    # → profile `devops`  (estate discovery read-only + Bedrock)
+```
+After that the FinOps servers use `AWS_PROFILE=finops` and the DevSecOps servers use
+`AWS_PROFILE=devops` (set in each server's `env`), so opening the repo in any editor "just works".
+Adjust `AWS_REGION` if needed. (Already have your own read-only profiles? Just change the
+`AWS_PROFILE` values.) For **org-wide cross-account** estate scans, use `scripts/setup_devops_role.sh`
+(the `DevOpsReadOnly` assume-role) and point the devops server at it with
+`FINOPS_AWS_AUTH=assume_role` + `FINOPS_ROLE_ARN=...`.
 
 ## Claude Code
 
@@ -56,13 +72,21 @@ Checked in at **`.vscode/mcp.json`** (uses the `servers` key + `"type": "stdio"`
 and click **Start**, or run *MCP: List Servers*. Use the tools from Copilot Chat in **Agent** mode.
 (Continue users: add the same `command`/`args`/`env` under `mcpServers` in `~/.continue/config.yaml`.)
 
-## Adding the other tool servers
+## What's registered (both options, out of the box)
 
-The configs register the two primary tool servers; add the rest the same way:
-```jsonc
-"finops-optimize-tools": { "command": "finops", "args": ["serve","optimize-tools","--stdio"], "env": { "AWS_REGION": "us-east-1" } },
-"finops-anomaly-tools":  { "command": "finops", "args": ["serve","anomaly-tools","--stdio"],  "env": { "AWS_REGION": "us-east-1" } }
-```
+All six servers are in every config — **Option B (agents)** + **Option A (tools)**:
+
+| Server | Option | Command | Profile |
+|---|---|---|---|
+| `finops-ask` | B (agent) | `finops serve ask --stdio` | `finops` |
+| `devops-ask` | B (agent) | `devops serve ask --stdio` | `devops` |
+| `finops-cost-tools` | A (tools) | `finops serve cost-tools --stdio` | `finops` |
+| `finops-optimize-tools` | A (tools) | `finops serve optimize-tools --stdio` | `finops` |
+| `finops-anomaly-tools` | A (tools) | `finops serve anomaly-tools --stdio` | `finops` |
+| `devops-tools` | A (tools) | `devops serve devops-tools --stdio` | `devops` |
+
+Disable any you don't want by removing its entry. Want fewer processes? Keep just the two
+`*-ask` agent servers (Option B) — they cover everything via routing.
 
 ## Telemetry in IDE mode
 
