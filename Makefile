@@ -52,6 +52,15 @@ observability:
 observability-down:
 	docker compose -f docker-compose.yml -f docker-compose.observability.yml down
 
+# Publish the MCP servers on the host for IDE-over-HTTP (Claude Code/Cursor/VS Code).
+# Agents: :8090 ask_finops, :8095 ask_devops.  Tools: :8081 cost :8082 optimize :8083 anomaly
+# :8085 devops. See docs/IDE_INTEGRATION.md ("HTTP / Docker route").
+mcp-http:
+	docker compose -f docker-compose.yml -f docker-compose.mcp.yml up -d --build
+
+mcp-http-down:
+	docker compose -f docker-compose.yml -f docker-compose.mcp.yml down
+
 # Run a single distributed service locally (each in its own shell)
 serve-cost-tools:
 	$(PY) -m finops_core.cli serve cost-tools

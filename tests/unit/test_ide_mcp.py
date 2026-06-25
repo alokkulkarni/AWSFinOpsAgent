@@ -107,3 +107,34 @@ def test_ide_configs_register_both_agents_and_tools():
     # a stdio launch references `serve ... --stdio`
     blob = json.dumps(data)
     assert "--stdio" in blob
+
+
+def test_ide_configs_use_dedicated_profiles():
+    data = json.loads((REPO / ".mcp.json").read_text())["mcpServers"]
+    assert data["finops-ask"]["env"]["AWS_PROFILE"] == "finops"
+    assert data["devops-ask"]["env"]["AWS_PROFILE"] == "devops"
+
+
+# --- HTTP / Docker overlay (docker-compose.mcp.yml) ------------------------
+def test_http_overlay_publishes_ports_and_ask_servers():
+    yaml = pytest.importorskip("yaml")
+    overlay = yaml.safe_load((REPO / "docker-compose.mcp.yml").read_text())
+    svcs = overlay["services"]
+
+    # the tool servers are published to the host (so localhost:<port>/mcp is reachable)
+    for name, port in [("cost-tools", "8081"), ("optimize-tools", "8082"),
+                       ("anomaly-tools", "8083"), ("devops-tools", "8085")]:
+        assert any(str(port) in str(p) for p in svcs[name]["ports"]), name
+
+    # the agent (ask) MCP servers run over HTTP, with the right command + profile
+    assert svcs["finops-ask"]["command"] == ["serve", "ask"]
+    assert svcs["finops-ask"]["environment"]["AWS_PROFILE"] == "finops"
+    assert any("8090" in str(p) for p in svcs["finops-ask"]["ports"])
+    assert svcs["devops-ask"]["command"] == ["serve", "ask"]
+    assert svcs["devops-ask"]["entrypoint"] == ["devops"]
+    assert svcs["devops-ask"]["environment"]["AWS_PROFILE"] == "devops"
+    assert any("8095" in str(p) for p in svcs["devops-ask"]["ports"])
+
+    # finops tool servers use the finops profile; devops the devops profile
+    assert svcs["cost-tools"]["environment"]["AWS_PROFILE"] == "finops"
+    assert svcs["devops-tools"]["environment"]["AWS_PROFILE"] == "devops"
