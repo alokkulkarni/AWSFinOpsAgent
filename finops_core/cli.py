@@ -435,6 +435,8 @@ def _run_ask(args) -> int:
         usage = getattr(getattr(result, "metrics", None), "accumulated_usage", None)
         if usage:
             u = usage_summary(ModelRouter(cfg).model_id("cost"), dict(usage))
+            from finops_core.telemetry import record_llm_usage
+            record_llm_usage(u)  # OTEL: token + estimated-$ metrics
             print(f"\n[tokens in {u['input_tokens']} out {u['output_tokens']} "
                   f"cacheRead {u['cache_read_tokens']} · est ${u['estimated_usd']}]")
     except Exception:
@@ -445,10 +447,29 @@ def _run_ask(args) -> int:
 # --------------------------------------------------------------------------- #
 # entrypoint
 # --------------------------------------------------------------------------- #
+def _init_telemetry(args, cmd: str) -> None:
+    """Best-effort OTEL bootstrap; never let observability setup break a CLI command."""
+    try:
+        from finops_core.config import Config
+        from finops_core.telemetry import setup_telemetry
+        cfg = Config.load(getattr(args, "config", None))
+        if cmd == "serve":
+            service, console = f"finops-{getattr(args, 'service', 'service')}", True
+        else:
+            service, console = "finops-cli", False
+        setup_telemetry(cfg, service, default_console=console)
+    except Exception:
+        pass
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     cmd = args.cmd or "preflight"
+
+    # OpenTelemetry: long-running servers emit to console when no collector endpoint is set; a
+    # one-shot CLI command stays quiet (no exporter) unless an endpoint is configured.
+    _init_telemetry(args, cmd)
 
     if cmd == "preflight":
         from finops_core.preflight import run_preflight

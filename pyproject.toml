@@ -25,6 +25,12 @@ agent = [
 ]
 api = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
 dashboard = ["streamlit>=1.33", "pandas>=2.0", "altair>=5.0"]
+# OpenTelemetry export (OTLP) for traces/metrics/logs. The API/SDK come transitively with the
+# `agent` extra (Strands); this adds the OTLP exporter the SDK doesn't bundle.
+otel = [
+  "opentelemetry-sdk>=1.30",
+  "opentelemetry-exporter-otlp>=1.30",
+]
 dev = ["pytest>=8.0", "moto>=5.0", "ruff>=0.4"]
 
 [project.scripts]

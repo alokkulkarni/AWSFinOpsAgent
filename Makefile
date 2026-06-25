@@ -44,6 +44,14 @@ stack-logs:
 stack-down:
 	docker compose down
 
+# Full stack + OpenTelemetry fan-out (collector -> Jaeger + Prometheus). UIs: Jaeger :16686,
+# Prometheus :9090. See docs/OBSERVABILITY.md.
+observability:
+	docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d --build
+
+observability-down:
+	docker compose -f docker-compose.yml -f docker-compose.observability.yml down
+
 # Run a single distributed service locally (each in its own shell)
 serve-cost-tools:
 	$(PY) -m finops_core.cli serve cost-tools

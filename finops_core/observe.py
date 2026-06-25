@@ -13,11 +13,28 @@ _CE_SERVICES = {"ce", "cost-explorer"}
 
 
 class ApiMeter:
-    def __init__(self):
+    def __init__(self, meter=None):
         self.calls: dict[str, int] = {}
+        self._meter = meter  # explicit OTEL meter (tests); None → global meter via instruments()
 
     def record(self, service: str, operation: str) -> None:
         self.calls[f"{service}:{operation}"] = self.calls.get(f"{service}:{operation}", 0) + 1
+        self._emit(service, operation)
+
+    def _emit(self, service: str, operation: str) -> None:
+        """Mirror the count into OTEL counters (best-effort; never break the AWS call path)."""
+        try:
+            from finops_core.telemetry import instruments
+            inst = instruments(self._meter)
+            if inst is None:
+                return
+            attrs = {"service": service, "operation": operation}
+            inst.aws_api_calls.add(1, attrs)
+            if service in _CE_SERVICES:
+                inst.ce_requests.add(1, attrs)
+                inst.ce_cost_usd.add(_CE_REQUEST_USD, attrs)
+        except Exception:
+            pass
 
     def _handler(self, model=None, **kwargs) -> None:
         if model is None:

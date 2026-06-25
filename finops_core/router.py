@@ -69,18 +69,25 @@ class IntentRouter:
     def answer(self, question: str) -> tuple[str, str]:
         """Return (intent, answer_text). Uses the remote A2A specialist if its URL is set.
         For in-process calls, records token/$ usage in self.last_usage."""
+        from finops_core.telemetry import traced
         intent = classify(question)
         self.last_usage = None
-        url = os.getenv(_ENV[intent])
-        if url:
-            from strands.agent.a2a_agent import A2AAgent
-            return intent, _text(A2AAgent(endpoint=url)(question))
+        # Span carries only metadata (intent / routing), never the question text or any figures.
+        with traced("finops.route.answer", **{"finops.intent": intent}) as span:
+            url = os.getenv(_ENV[intent])
+            if url:
+                from strands.agent.a2a_agent import A2AAgent
+                if span is not None:
+                    span.set_attribute("finops.route", "a2a")
+                return intent, _text(A2AAgent(endpoint=url)(question))
 
-        from finops_core.hooks import ToolMeter, default_hooks
-        meter = ToolMeter()
-        result = self._local_agent(intent, hooks=default_hooks(self.cfg, meter))(question)
-        self._record_usage(result, intent, meter)
-        return intent, _text(result)
+            from finops_core.hooks import ToolMeter, default_hooks
+            meter = ToolMeter()
+            result = self._local_agent(intent, hooks=default_hooks(self.cfg, meter))(question)
+            self._record_usage(result, intent, meter)
+            if span is not None and self.last_usage:
+                span.set_attribute("finops.tool_calls", self.last_usage.get("tools", {}).get("tool_calls", 0))
+            return intent, _text(result)
 
     def structured_answer(self, question: str):
         """Return (intent, FinOpsAnswer | dict) — figures as typed fields (exact, from tools).
@@ -112,5 +119,7 @@ class IntentRouter:
                 **usage_summary(ModelRouter(self.cfg).model_id(role), dict(usage or {})),
                 "tools": meter.summary(),
             }
+            from finops_core.telemetry import record_llm_usage
+            record_llm_usage(self.last_usage)  # OTEL token + estimated-$ metrics
         except Exception:
             self.last_usage = None

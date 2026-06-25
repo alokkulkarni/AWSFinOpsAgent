@@ -78,11 +78,29 @@ class GuardrailsConfig:
 
 
 @dataclass
+class TelemetryConfig:
+    """OpenTelemetry export (traces, metrics, logs). ON by default — falls back to console when no
+    collector endpoint is configured, so there's no export noise locally. See docs/OBSERVABILITY.md.
+    """
+    enabled: bool = True
+    exporter: str = "auto"            # auto | otlp | console | none (auto: otlp if endpoint else console)
+    endpoint: Optional[str] = None    # OTLP endpoint (else OTEL_EXPORTER_OTLP_ENDPOINT)
+    protocol: str = "grpc"            # grpc | http
+    service_name: Optional[str] = None  # default = per-entrypoint name passed to setup_telemetry
+    sample_ratio: float = 1.0         # trace head-sampling ratio (volume control); 1.0 = all
+    traces: bool = True
+    metrics: bool = True
+    logs: bool = True
+    content: str = "omit"             # omit | redact | full — how prompt/response/tool content is handled
+
+
+@dataclass
 class Config:
     mode: str = "advisory"           # advisory | artifacts | guarded_write
     aws: AwsConfig = field(default_factory=AwsConfig)
     llm: LlmConfig = field(default_factory=LlmConfig)
     guardrails: GuardrailsConfig = field(default_factory=GuardrailsConfig)
+    telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     cache_ttl_seconds: int = 3600
     skills_enabled: bool = False     # agent skills (progressive disclosure); opt-in, off by default
 
@@ -145,6 +163,20 @@ class Config:
             ),
         )
 
+        t = data.get("telemetry") or {}
+        cfg.telemetry = TelemetryConfig(
+            enabled=bool(t.get("enabled", cfg.telemetry.enabled)),
+            exporter=t.get("exporter", cfg.telemetry.exporter),
+            endpoint=t.get("endpoint", cfg.telemetry.endpoint),
+            protocol=t.get("protocol", cfg.telemetry.protocol),
+            service_name=t.get("service_name", cfg.telemetry.service_name),
+            sample_ratio=float(t.get("sample_ratio", cfg.telemetry.sample_ratio)),
+            traces=bool(t.get("traces", cfg.telemetry.traces)),
+            metrics=bool(t.get("metrics", cfg.telemetry.metrics)),
+            logs=bool(t.get("logs", cfg.telemetry.logs)),
+            content=t.get("content", cfg.telemetry.content),
+        )
+
         cfg._apply_env_overrides()
         return cfg
 
@@ -183,6 +215,20 @@ class Config:
             "FINOPS_REDACT_ACCOUNT_IDS", self.guardrails.redact_account_ids
         )
 
+        self.telemetry.enabled = _env_bool("FINOPS_TELEMETRY", self.telemetry.enabled)
+        self.telemetry.exporter = os.getenv("FINOPS_TELEMETRY_EXPORTER", self.telemetry.exporter)
+        # FINOPS_TELEMETRY_ENDPOINT wins; else honor the standard OTEL env so OTLP "just works".
+        self.telemetry.endpoint = _first_env(
+            "FINOPS_TELEMETRY_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"
+        ) or self.telemetry.endpoint
+        self.telemetry.protocol = os.getenv("FINOPS_TELEMETRY_PROTOCOL", self.telemetry.protocol)
+        self.telemetry.service_name = os.getenv(
+            "FINOPS_TELEMETRY_SERVICE", self.telemetry.service_name
+        )
+        if os.getenv("FINOPS_TELEMETRY_SAMPLE_RATIO"):
+            self.telemetry.sample_ratio = float(os.environ["FINOPS_TELEMETRY_SAMPLE_RATIO"])
+        self.telemetry.content = os.getenv("FINOPS_TELEMETRY_CONTENT", self.telemetry.content)
+
     # ---- helpers -------------------------------------------------------
     def redacted(self) -> dict:
         """Config snapshot safe to print/log (no secrets; ARN account id masked)."""
@@ -204,6 +250,19 @@ class Config:
                 "fallback": self.llm.fallback,
             },
             "guardrails": vars(self.guardrails),
+            "telemetry": {
+                "enabled": self.telemetry.enabled,
+                "exporter": self.telemetry.exporter,
+                "endpoint": self.telemetry.endpoint,
+                "protocol": self.telemetry.protocol,
+                "sample_ratio": self.telemetry.sample_ratio,
+                "content": self.telemetry.content,
+                "signals": {
+                    "traces": self.telemetry.traces,
+                    "metrics": self.telemetry.metrics,
+                    "logs": self.telemetry.logs,
+                },
+            },
             "cache_ttl_seconds": self.cache_ttl_seconds,
             "skills_enabled": self.skills_enabled,
         }

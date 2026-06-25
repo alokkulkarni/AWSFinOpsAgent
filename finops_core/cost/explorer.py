@@ -115,6 +115,28 @@ class CostExplorer:
         filters: dict | None = None,
         top_n: int | None = None,
     ) -> CostBreakdown:
+        from finops_core.telemetry import traced
+        # Span on the deterministic fast-path (dashboard clicks / drill-downs) — metadata only,
+        # never filter values (which can hold account/resource ids) or any cost figure.
+        with traced("finops.cost.grouped",
+                    **{"finops.group_by": group_by, "finops.granularity": granularity,
+                       "finops.metric": metric}):
+            return self._grouped_cost(group_by, period=period, start=start, end=end,
+                                      granularity=granularity, metric=metric,
+                                      filters=filters, top_n=top_n)
+
+    def _grouped_cost(
+        self,
+        group_by: str,
+        *,
+        period: str = "mtd",
+        start: str | None = None,
+        end: str | None = None,
+        granularity: str = "MONTHLY",
+        metric: str = "UnblendedCost",
+        filters: dict | None = None,
+        top_n: int | None = None,
+    ) -> CostBreakdown:
         start, end = resolve_period(period, start, end)
         gb = [self._group_key(group_by)]
         cost_filter = self._build_filter(filters or {})
