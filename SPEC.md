@@ -436,8 +436,11 @@ our servers as tools. Two surfaces, both shipped:
 All servers gain a `--stdio` transport (`finops_core/mcp_servers/_runtime.py::run_mcp`, selected by
 `FINOPS_MCP_TRANSPORT`) so the editor can spawn them locally; banners go to stderr (stdout is the
 MCP channel). The same servers still run Streamable HTTP for the Docker stack. Checked-in configs:
-`.mcp.json` (Claude Code), `.cursor/mcp.json` (Cursor), `.vscode/mcp.json` (VS Code). Read-only
-posture + `ReadOnlyGuard` apply unchanged. Guide: `docs/IDE_INTEGRATION.md`.
+`.mcp.json` (Claude Code), `.cursor/mcp.json` (Cursor), `.vscode/mcp.json` (VS Code) — pre-wired to
+the dedicated read-only profiles (`scripts/setup_{finops,devops}_iam.sh`). For an always-on shared
+stack, the `docker-compose.mcp.yml` overlay (`make mcp-http`) publishes the tool servers + the two
+agent (`ask`) servers on the host for IDE-over-HTTP. Read-only posture + `ReadOnlyGuard` apply
+unchanged. Guide: `docs/IDE_INTEGRATION.md`.
 
 ---
 

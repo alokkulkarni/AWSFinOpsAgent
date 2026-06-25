@@ -1,0 +1,64 @@
+# IDE-over-HTTP overlay — publish the MCP servers on the host and run the agent ("ask") MCP
+# servers, so Claude Code / Cursor / VS Code can connect via `--transport http`.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.mcp.yml up -d --build
+#   (or: make mcp-http)
+#
+# Endpoints (all FastMCP Streamable-HTTP at /mcp):
+#   Option B (agents):  http://localhost:8090/mcp  (ask_finops)   http://localhost:8095/mcp  (ask_devops)
+#   Option A (tools):   http://localhost:8081/mcp  (cost)  :8082 (optimize)  :8083 (anomaly)  :8085 (devops)
+#
+# Credentials: finops servers use the `finops` profile, devops servers the `devops` profile —
+# both read from the mounted ~/.aws (create them with scripts/setup_{finops,devops}_iam.sh).
+# Base posture stays read-only (advisory); the tool servers are otherwise host-internal (expose).
+
+x-mcp-base: &mcp-base
+  build: .
+  image: aws-finops-agent:dev
+  env_file:
+    - path: .env
+      required: false
+  volumes:
+    - ${HOME}/.aws:/home/finops/.aws:ro
+    - ./config:/app/config:ro
+  restart: unless-stopped
+
+services:
+  # --- Option A: publish the existing tool servers on the host (merges ports + profile in) ---
+  cost-tools:
+    ports: ["8081:8081"]
+    environment: { AWS_PROFILE: finops }
+  optimize-tools:
+    ports: ["8082:8082"]
+    environment: { AWS_PROFILE: finops }
+  anomaly-tools:
+    ports: ["8083:8083"]
+    environment: { AWS_PROFILE: finops }
+  devops-tools:
+    ports: ["8085:8085"]
+    environment: { AWS_PROFILE: devops }
+
+  # --- Option B: the agent ("ask") MCP servers over HTTP ---
+  finops-ask:
+    <<: *mcp-base
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_PROFILE: finops
+      FINOPS_MODE: advisory
+      FINOPS_MCP_HOST: "0.0.0.0"
+      FINOPS_ASK_MCP_PORT: "8090"
+    command: ["serve", "ask"]            # entrypoint is `finops` → ask_finops
+    ports: ["8090:8090"]
+
+  devops-ask:
+    <<: *mcp-base
+    entrypoint: ["devops"]
+    environment:
+      HOME: /home/finops
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_PROFILE: devops
+      FINOPS_MCP_HOST: "0.0.0.0"
+      DEVOPS_ASK_MCP_PORT: "8095"
+    command: ["serve", "ask"]            # entrypoint `devops` → ask_devops
+    ports: ["8095:8095"]

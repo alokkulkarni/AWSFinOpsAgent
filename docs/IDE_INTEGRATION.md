@@ -59,8 +59,6 @@ claude mcp add devops-ask -- devops serve ask --stdio
 Then just ask: *"use finops-ask: where is my money going this month?"* You can also add a
 `.claude/commands/finops.md` slash command or a subagent that wraps these tools.
 
-HTTP instead (if the Docker stack is already up): `claude mcp add --transport http finops http://localhost:8081/mcp`.
-
 ## Cursor
 
 Checked in at **`.cursor/mcp.json`** (same `mcpServers` schema as Claude Code). Cursor →
@@ -87,6 +85,47 @@ All six servers are in every config — **Option B (agents)** + **Option A (tool
 
 Disable any you don't want by removing its entry. Want fewer processes? Keep just the two
 `*-ask` agent servers (Option B) — they cover everything via routing.
+
+## HTTP / Docker route (always-on shared stack)
+
+Prefer this when you want one running stack (e.g. shared by a team, or kept up across editor
+restarts) instead of the editor spawning a process per session. **Note:** the base
+`docker-compose.yml` keeps the MCP tool servers host-internal (`expose:`), so plain
+`localhost:8081` is *not* reachable. The **`docker-compose.mcp.yml` overlay** publishes them on the
+host and adds the two agent (`ask`) servers over HTTP:
+
+```bash
+make mcp-http      # docker compose -f docker-compose.yml -f docker-compose.mcp.yml up -d --build
+```
+
+Endpoints (FastMCP Streamable-HTTP, all at `/mcp`):
+
+| Server | URL | Surface |
+|---|---|---|
+| ask_finops | `http://localhost:8090/mcp` | B (agent) |
+| ask_devops | `http://localhost:8095/mcp` | B (agent) |
+| cost tools | `http://localhost:8081/mcp` | A (tools) |
+| optimize tools | `http://localhost:8082/mcp` | A (tools) |
+| anomaly tools | `http://localhost:8083/mcp` | A (tools) |
+| devops tools | `http://localhost:8085/mcp` | A (tools) |
+
+Register them (Claude Code shown; add the `/mcp` suffix):
+
+```bash
+claude mcp add --transport http finops-ask  http://localhost:8090/mcp
+claude mcp add --transport http devops-ask  http://localhost:8095/mcp
+claude mcp add --transport http finops-cost http://localhost:8081/mcp
+claude mcp add --transport http devops-tools http://localhost:8085/mcp
+claude mcp remove finops      # drop any earlier broken localhost:8081 entry
+```
+Cursor / VS Code: use a URL entry instead of `command` — `{ "url": "http://localhost:8090/mcp" }`
+(VS Code adds `"type": "http"`). `make mcp-http-down` stops it.
+
+Credentials are baked into the overlay: finops services run with `AWS_PROFILE=finops`, devops with
+`AWS_PROFILE=devops`, read from the mounted `~/.aws` (the same profiles the setup scripts create) —
+so the containers are read-only and already configured. Bedrock access is in both read-only
+policies, so the agent servers can reason. The published ports are plaintext + unauthenticated —
+keep them bound to localhost; don't expose them off-box.
 
 ## Telemetry in IDE mode
 
