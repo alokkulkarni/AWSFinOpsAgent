@@ -32,6 +32,14 @@ from finops_core.modes import (  # noqa: E402
 
 st.set_page_config(page_title="AWS FinOps Agent", page_icon="💰", layout="wide")
 
+# OpenTelemetry bootstrap (idempotent across Streamlit reruns; best-effort). Covers both the
+# FinOps and DevOps dashboard pages since they share this process.
+try:
+    from finops_core.telemetry import setup_telemetry  # noqa: E402
+    setup_telemetry(Config.load(), "finops-dashboard", default_console=True)
+except Exception:
+    pass
+
 
 def mode_cfg() -> Config:
     """Config with the action mode + skills toggle chosen in the sidebar (runtime override)."""

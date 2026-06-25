@@ -530,11 +530,28 @@ secrets in images/logs. **Verified**: full stack runs and answers under the hard
 
 - Strands tracing/observability + structured logs: per-request tool calls, latency, token
   usage, **estimated LLM $ and AWS-API $** per session.
-- OpenTelemetry export optional (console/OTLP).
+- **OpenTelemetry (Phase 13):** full traces + metrics + logs over OTLP from every tier, routed
+  (with Strands' agent/model/tool spans) through one sampling + batching + **PII-redacting**
+  pipeline (`finops_core/telemetry.py`) to an OTEL **Collector** that fans out to Jaeger (traces)
+  + Prometheus (metrics) + debug/file. Account ids / ARNs / emails are redacted on span attributes
+  **and** events; a 3-way `content` mode (omit/redact/full) governs prompt/tool content. ON by
+  default (console fallback when no collector). See §15.1 + `docs/OBSERVABILITY.md`.
 - **Numerical accuracy harness:** golden tests assert agent/tool numbers match a direct
   Cost Explorer/CUR query within tolerance (numbers must be exact, not "LLM-estimated").
 - Eval set of canonical questions ("top 5 services last month", "EC2 by usage type",
   "biggest savings") with expected tool-call shapes.
+
+### 15.1 OpenTelemetry best practices  ✅ *Phase 13*
+- **Standardize:** `setup_telemetry(cfg, service_name)` at every entrypoint (idempotent);
+  per-service `service.name` (`finops-cli`/`finops-cost-agent`/`finops-api`/`devops-agent`…).
+- **Fan-out:** OTEL Collector pipelines export each signal to multiple consumers
+  (`observability/otel-collector-config.yaml`; `docker-compose.observability.yml`; `make observability`).
+- **Volume:** head sampling (`telemetry.sample_ratio`) + batching in-app; Collector `tail_sampling`
+  (keep errors/slow, sample rest) + `batch` + content-attribute drop.
+- **Shift-left:** spans on the deterministic seams (`finops.cost.grouped`, `finops.route.answer`)
+  + LLM token/$ + AWS-API metrics to tune prompts/tools from real traces.
+- **Security/privacy:** in-app `RedactingSpanProcessor` + `RedactingLogFilter`, Collector
+  `redaction` as a second pass; retention/access guidance in `docs/OBSERVABILITY.md`.
 
 ---
 
@@ -633,6 +650,7 @@ AWSFinOpsAgent/
 | **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests | ✅ **Done** — sandbox + IAM landed earlier; this phase adds the AWS-API meter (CE-spend estimate, /metrics), `finops accuracy` reconciliation (live PASS: Δ $2e-06), structured logging |
 | **11. Agent skills** | `AgentSkills` plugin wired into all four agents (cost/optimize/anomaly/devsecops), per-agent skill folders, skills-dir-scoped reader, opt-in config + CLI flag + dashboard toggle | Default-off no-op; skills discovered + threaded when enabled; reader rejects path-escape | ✅ **Done** — `finops_core/skills` + `devops_core/skills`; 4 seed skills; enable via `skills.enabled`/`FINOPS_SKILLS`/`--skills`/sidebar toggle; `docs/SKILLS.md`; 29 unit tests (165 total green) |
 | **12. Conversation mgmt & memory** | Summarizing conversation manager (context-rot fix) + persistent cross-session memory wired into all four agents (cost/optimize/anomaly/devsecops) + orchestrator; on by default; CLI flags + dashboard toggles | Old turns summarized automatically (not dropped), context bounded; memory recalled/captured across sessions; account-ID redaction; off-switch reverts to prior behavior | ✅ **Done** — `finops_core/conversation.py` + `finops_core/memory/` + `agent_context.py`; `conversation.*`/`memory.*` config, `FINOPS_MEMORY`/`FINOPS_CONVERSATION_SUMMARIZE`, `--memory`/`--summarize`, sidebar toggles; `docs/MEMORY.md`; 35 unit tests (208 total green) |
+| **13. OpenTelemetry observability** | OTLP traces+metrics+logs from every tier through one sampling/batching/redacting pipeline + an OTEL Collector fan-out to Jaeger + Prometheus; PII redaction (attributes + content events) with a 3-way content mode; on by default | Spans/metrics/logs export (console without a collector, OTLP with); account ids/ARNs/emails redacted; content omitted by default; `make observability` brings up the fan-out | ✅ **Done** — `finops_core/telemetry.py` (+ `observe.py` OTEL counters), entrypoint bootstrap (CLI/serve/API/dashboard), `@traced` seams, `observability/` collector config + `docker-compose.observability.yml`, `otel` extra; `docs/OBSERVABILITY.md`; 16 unit tests (189 total green) |
 
 ### Phase-1 verification evidence (2026-06-19)
 - **Numbers reconcile against live Cost Explorer**: `by-service` total == `summary` total

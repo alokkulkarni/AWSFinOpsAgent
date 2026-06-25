@@ -302,6 +302,20 @@ def _run_ask(args) -> int:
 def main(argv: Optional[list] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    # OpenTelemetry bootstrap (best-effort): servers emit to console without a collector endpoint;
+    # one-shot devops commands stay quiet unless an endpoint is configured.
+    try:
+        from finops_core.config import Config
+        from finops_core.telemetry import setup_telemetry
+        if args.cmd == "serve":
+            _svc, _console = f"devops-{getattr(args, 'service', 'service')}", True
+        else:
+            _svc, _console = "devops-cli", False
+        setup_telemetry(Config.load(getattr(args, "config", None)), _svc, default_console=_console)
+    except Exception:
+        pass
+
     if args.cmd == "scan":
         return _run_scan(args)
     if args.cmd == "diagram":

@@ -40,3 +40,14 @@ guardrails:
   athena_max_scanned_gb: 10
   require_confirmation: true
   redact_account_ids: true
+
+telemetry:                     # OpenTelemetry (traces, metrics, logs). See docs/OBSERVABILITY.md
+  enabled: true                # ON by default. Env: FINOPS_TELEMETRY
+  exporter: auto               # auto | otlp | console | none (auto: otlp if endpoint else console)
+  endpoint: null               # OTLP endpoint; else OTEL_EXPORTER_OTLP_ENDPOINT. Env: FINOPS_TELEMETRY_ENDPOINT
+  protocol: grpc               # grpc | http
+  sample_ratio: 1.0            # trace head-sampling (volume control); 1.0 = all. Env: FINOPS_TELEMETRY_SAMPLE_RATIO
+  content: omit                # omit | redact | full — prompt/response/tool content. Env: FINOPS_TELEMETRY_CONTENT
+  traces: true
+  metrics: true
+  logs: true

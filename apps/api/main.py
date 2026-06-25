@@ -19,11 +19,41 @@ from finops_core.config import Config
 from finops_core.cost.explorer import CostExplorer
 from finops_core.optimize.engine import Optimizer
 
+from contextlib import asynccontextmanager  # noqa: E402
+
+
+@asynccontextmanager
+async def _lifespan(_app):
+    """Bootstrap OpenTelemetry for the API process (best-effort)."""
+    try:
+        from finops_core.telemetry import setup_telemetry
+        setup_telemetry(Config.load(), "finops-api", default_console=True)
+    except Exception:
+        pass
+    yield
+
+
 app = FastAPI(
     title="AWS FinOps Agent API",
     version="0.1.0",
     summary="Deterministic AWS cost data + intent-routed FinOps chat.",
+    lifespan=_lifespan,
 )
+
+
+@app.middleware("http")
+async def _otel_request_span(request, call_next):
+    """Wrap each request in a span (route + status only — no query strings / bodies)."""
+    try:
+        from finops_core.telemetry import traced
+        with traced("http.request", **{"http.method": request.method,
+                                        "http.route": request.url.path}) as span:
+            response = await call_next(request)
+            if span is not None:
+                span.set_attribute("http.status_code", response.status_code)
+            return response
+    except Exception:
+        return await call_next(request)
 
 
 # ---- dependencies (override in tests) -------------------------------------
