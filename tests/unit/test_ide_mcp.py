@@ -135,6 +135,7 @@ def test_http_overlay_publishes_ports_and_ask_servers():
     assert svcs["devops-ask"]["environment"]["AWS_PROFILE"] == "devops"
     assert any("8095" in str(p) for p in svcs["devops-ask"]["ports"])
 
-    # finops tool servers use the finops profile; devops the devops profile
-    assert svcs["cost-tools"]["environment"]["AWS_PROFILE"] == "finops"
-    assert svcs["devops-tools"]["environment"]["AWS_PROFILE"] == "devops"
+    # Tool servers operate in connector mode — no server-side AWS_PROFILE.
+    # Credentials are supplied per-request via X-Aws-* headers by the connector user.
+    assert "AWS_PROFILE" not in (svcs["cost-tools"].get("environment") or {})
+    assert "AWS_PROFILE" not in (svcs["devops-tools"].get("environment") or {})
