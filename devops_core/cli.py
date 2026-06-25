@@ -53,6 +53,11 @@ def _build_parser() -> argparse.ArgumentParser:
     ak.add_argument("--remote", default=None, metavar="URL", help="call a remote A2A devops-agent")
     ak.add_argument("--skills", action=argparse.BooleanOptionalAction, default=None,
                     help="enable/disable agent skills for this question (default: config / FINOPS_SKILLS)")
+    ak.add_argument("--memory", action=argparse.BooleanOptionalAction, default=None,
+                    help="enable/disable persistent agent memory (default: config / FINOPS_MEMORY)")
+    ak.add_argument("--summarize", action=argparse.BooleanOptionalAction, default=None,
+                    help="enable/disable conversation summarization (default: config / "
+                         "FINOPS_CONVERSATION_SUMMARIZE)")
 
     rv = sub.add_parser("review", help="review a resource for best-practice optimizations")
     rv.add_argument("service", help="lambda | ec2 | rds | s3 | ... (inferred from an ARN)")
@@ -295,7 +300,9 @@ def _run_ask(args) -> int:
         tools = (build_estate_tools(index=idx) + build_diagram_tools(session, cfg, index=idx)
                  + build_review_tools(session, cfg) + build_diagnose_tools(session, cfg))
         agent = build_estate_agent(cfg=cfg, session=session, callback_handler=None, tools=tools,
-                                   skills=getattr(args, "skills", None))
+                                   skills=getattr(args, "skills", None),
+                                   memory=getattr(args, "memory", None),
+                                   conversation=getattr(args, "summarize", None))
     except ImportError:
         print("[error] the agent needs Strands: pip install -e '.[agent]'")
         return 2
@@ -306,6 +313,20 @@ def _run_ask(args) -> int:
 def main(argv: Optional[list] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    # OpenTelemetry bootstrap (best-effort): servers emit to console without a collector endpoint;
+    # one-shot devops commands stay quiet unless an endpoint is configured.
+    try:
+        from finops_core.config import Config
+        from finops_core.telemetry import setup_telemetry
+        if args.cmd == "serve":
+            _svc, _console = f"devops-{getattr(args, 'service', 'service')}", True
+        else:
+            _svc, _console = "devops-cli", False
+        setup_telemetry(Config.load(getattr(args, "config", None)), _svc, default_console=_console)
+    except Exception:
+        pass
+
     if args.cmd == "scan":
         return _run_scan(args)
     if args.cmd == "diagram":

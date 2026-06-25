@@ -228,6 +228,33 @@ core playbook; **tools** = deterministic AWS execution; **skills** = sometimes-n
 within one agent; **sub-agents** = different roles. Seeds shipped: `cost-drilldown-playbook`,
 `savings-plan-vs-ri`, `anomaly-triage`, `incident-triage-runbook`.
 
+### 5.5 Conversation management & memory  ✅ *Phase 12 — on by default, configurable.*
+
+Long-lived agents (the dashboard reuses a cached `Agent` across every turn; A2A servers hold one
+for the process lifetime) must not re-send the full raw transcript every turn — that is **context
+rot** (rising cost/latency, eventual context-window overflow). Two independent Strands mechanisms,
+both **on by default** and wired through one helper (`finops_core/agent_context.py`) into all four
+agents (cost/optimize/anomaly/devsecops) + the orchestrator:
+
+- **Summarization** — a [`SummarizingConversationManager`](https://strandsagents.com/docs/user-guide/concepts/agents/conversation-management/)
+  (`finops_core/conversation.py`) folds the oldest turns into a compact running summary and keeps
+  recent turns verbatim — instead of the default sliding-window's lossy *drop*. It runs inside the
+  event loop (proactively at a context-usage threshold + reactively on overflow), so it is
+  automatic and never interrupts the conversation.
+- **Persistent memory** — a local file-backed [`MemoryManager`](https://strandsagents.com/docs/user-guide/concepts/agents/memory/)
+  store (`finops_core/memory/`) gives durable, cross-session recall of "important aspects" (goals,
+  account/resource facts, decisions). Capture is **both** automatic LLM extraction *and* an
+  explicit "remember" tool; recall is auto-injected into new prompts; a search tool lets the agent
+  validate a prompt against memory. Per-agent namespaces (`finops` / `devops`).
+
+**Posture (consistent with §14).** Summaries/memories are *context*, never the source of figures
+(numbers-must-be-exact — the summary prompt preserves figures verbatim; recalled memory is **data,
+not instructions**). Memory persists **outside the repo** (`~/.finops_agent/memory`, gitignored)
+with **account-ID redaction on write** (honoring `guardrails.redact_account_ids`). Toggle via
+`conversation.*` / `memory.*` config, `FINOPS_MEMORY` / `FINOPS_CONVERSATION_SUMMARIZE`, the
+`--memory/--summarize` CLI flags, the dashboard sidebar, or `build_*_agent(memory=, conversation=)`.
+Authoring/operational guide: `docs/MEMORY.md`.
+
 ---
 
 ## 6. Model Strategy (Bedrock with fallback)
@@ -507,6 +534,10 @@ secrets in images/logs. **Verified**: full stack runs and answers under the hard
 - **Agent skills (opt-in, §5.4):** skills carry *instructions only* (numbers still come from
   tools); the lone filesystem capability they add is a **per-agent directory-scoped reader** that
   rejects path-escape, keeping the read-only/least-privilege posture intact.
+- **Conversation memory (§5.5):** persisted memory lives **outside the repo**
+  (`~/.finops_agent/memory`, gitignored) with **account-ID redaction on write**; recalled memory
+  is treated as **data, not instructions** (same prompt-injection posture); summaries preserve
+  figures verbatim (numbers-must-be-exact). All toggleable; delete the namespace file to wipe.
 
 ---
 
@@ -514,11 +545,28 @@ secrets in images/logs. **Verified**: full stack runs and answers under the hard
 
 - Strands tracing/observability + structured logs: per-request tool calls, latency, token
   usage, **estimated LLM $ and AWS-API $** per session.
-- OpenTelemetry export optional (console/OTLP).
+- **OpenTelemetry (Phase 13):** full traces + metrics + logs over OTLP from every tier, routed
+  (with Strands' agent/model/tool spans) through one sampling + batching + **PII-redacting**
+  pipeline (`finops_core/telemetry.py`) to an OTEL **Collector** that fans out to Jaeger (traces)
+  + Prometheus (metrics) + debug/file. Account ids / ARNs / emails are redacted on span attributes
+  **and** events; a 3-way `content` mode (omit/redact/full) governs prompt/tool content. ON by
+  default (console fallback when no collector). See §15.1 + `docs/OBSERVABILITY.md`.
 - **Numerical accuracy harness:** golden tests assert agent/tool numbers match a direct
   Cost Explorer/CUR query within tolerance (numbers must be exact, not "LLM-estimated").
 - Eval set of canonical questions ("top 5 services last month", "EC2 by usage type",
   "biggest savings") with expected tool-call shapes.
+
+### 15.1 OpenTelemetry best practices  ✅ *Phase 13*
+- **Standardize:** `setup_telemetry(cfg, service_name)` at every entrypoint (idempotent);
+  per-service `service.name` (`finops-cli`/`finops-cost-agent`/`finops-api`/`devops-agent`…).
+- **Fan-out:** OTEL Collector pipelines export each signal to multiple consumers
+  (`observability/otel-collector-config.yaml`; `docker-compose.observability.yml`; `make observability`).
+- **Volume:** head sampling (`telemetry.sample_ratio`) + batching in-app; Collector `tail_sampling`
+  (keep errors/slow, sample rest) + `batch` + content-attribute drop.
+- **Shift-left:** spans on the deterministic seams (`finops.cost.grouped`, `finops.route.answer`)
+  + LLM token/$ + AWS-API metrics to tune prompts/tools from real traces.
+- **Security/privacy:** in-app `RedactingSpanProcessor` + `RedactingLogFilter`, Collector
+  `redaction` as a second pass; retention/access guidance in `docs/OBSERVABILITY.md`.
 
 ---
 
@@ -616,6 +664,8 @@ AWSFinOpsAgent/
 | **9. Org/multi-account** | assume-role fan-out, per-account split | Per-linked-account costs | ✅ **Done** — OrgResolver (list accounts, id→name, assume-role); cost-by-account name-enriched (CLI/API/cost-tier); verified live on a real Organizations payer (3 accounts: invincible/Audit/Log Archive) |
 | **10. Hardening** | Sandbox compose, IAM policies, accuracy harness, observability | Sandbox run + green accuracy tests | ✅ **Done** — sandbox + IAM landed earlier; this phase adds the AWS-API meter (CE-spend estimate, /metrics), `finops accuracy` reconciliation (live PASS: Δ $2e-06), structured logging |
 | **11. Agent skills** | `AgentSkills` plugin wired into all four agents (cost/optimize/anomaly/devsecops), per-agent skill folders, skills-dir-scoped reader, opt-in config + CLI flag + dashboard toggle | Default-off no-op; skills discovered + threaded when enabled; reader rejects path-escape | ✅ **Done** — `finops_core/skills` + `devops_core/skills`; 4 seed skills; enable via `skills.enabled`/`FINOPS_SKILLS`/`--skills`/sidebar toggle; `docs/SKILLS.md`; 29 unit tests (165 total green) |
+| **12. Conversation mgmt & memory** | Summarizing conversation manager (context-rot fix) + persistent cross-session memory wired into all four agents (cost/optimize/anomaly/devsecops) + orchestrator; on by default; CLI flags + dashboard toggles | Old turns summarized automatically (not dropped), context bounded; memory recalled/captured across sessions; account-ID redaction; off-switch reverts to prior behavior | ✅ **Done** — `finops_core/conversation.py` + `finops_core/memory/` + `agent_context.py`; `conversation.*`/`memory.*` config, `FINOPS_MEMORY`/`FINOPS_CONVERSATION_SUMMARIZE`, `--memory`/`--summarize`, sidebar toggles; `docs/MEMORY.md`; 35 unit tests (208 total green) |
+| **13. OpenTelemetry observability** | OTLP traces+metrics+logs from every tier through one sampling/batching/redacting pipeline + an OTEL Collector fan-out to Jaeger + Prometheus; PII redaction (attributes + content events) with a 3-way content mode; on by default | Spans/metrics/logs export (console without a collector, OTLP with); account ids/ARNs/emails redacted; content omitted by default; `make observability` brings up the fan-out | ✅ **Done** — `finops_core/telemetry.py` (+ `observe.py` OTEL counters), entrypoint bootstrap (CLI/serve/API/dashboard), `@traced` seams, `observability/` collector config + `docker-compose.observability.yml`, `otel` extra; `docs/OBSERVABILITY.md`; 16 unit tests (189 total green) |
 
 ### Phase-1 verification evidence (2026-06-19)
 - **Numbers reconcile against live Cost Explorer**: `by-service` total == `summary` total

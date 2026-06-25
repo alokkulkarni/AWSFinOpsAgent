@@ -118,6 +118,11 @@ def _build_parser() -> argparse.ArgumentParser:
                      metavar="URL", help="call a remote A2A agent (e.g. http://localhost:9000)")
     ask.add_argument("--skills", action=argparse.BooleanOptionalAction, default=None,
                      help="enable/disable agent skills for this question (default: config / FINOPS_SKILLS)")
+    ask.add_argument("--memory", action=argparse.BooleanOptionalAction, default=None,
+                     help="enable/disable persistent agent memory (default: config / FINOPS_MEMORY)")
+    ask.add_argument("--summarize", action=argparse.BooleanOptionalAction, default=None,
+                     help="enable/disable conversation summarization (default: config / "
+                          "FINOPS_CONVERSATION_SUMMARIZE)")
 
     # accuracy — reconcile tool-layer numbers against a raw Cost Explorer query
     ac = sub.add_parser("accuracy", help="verify tool numbers match raw Cost Explorer (+ API meter)")
@@ -433,7 +438,9 @@ def _run_ask(args) -> int:
         from finops_core.agents.cost import build_cost_agent
         # callback_handler=None: suppress token streaming so we print the answer once
         agent = build_cost_agent(build_session(cfg), cfg, callback_handler=None,
-                                 skills=getattr(args, "skills", None))
+                                 skills=getattr(args, "skills", None),
+                                 memory=getattr(args, "memory", None),
+                                 conversation=getattr(args, "summarize", None))
     except ImportError:
         print("[error] the agent requires Strands. Install with: pip install -e '.[agent]'")
         return 2
@@ -449,6 +456,8 @@ def _run_ask(args) -> int:
         usage = getattr(getattr(result, "metrics", None), "accumulated_usage", None)
         if usage:
             u = usage_summary(ModelRouter(cfg).model_id("cost"), dict(usage))
+            from finops_core.telemetry import record_llm_usage
+            record_llm_usage(u)  # OTEL: token + estimated-$ metrics
             print(f"\n[tokens in {u['input_tokens']} out {u['output_tokens']} "
                   f"cacheRead {u['cache_read_tokens']} · est ${u['estimated_usd']}]")
     except Exception:
@@ -459,10 +468,29 @@ def _run_ask(args) -> int:
 # --------------------------------------------------------------------------- #
 # entrypoint
 # --------------------------------------------------------------------------- #
+def _init_telemetry(args, cmd: str) -> None:
+    """Best-effort OTEL bootstrap; never let observability setup break a CLI command."""
+    try:
+        from finops_core.config import Config
+        from finops_core.telemetry import setup_telemetry
+        cfg = Config.load(getattr(args, "config", None))
+        if cmd == "serve":
+            service, console = f"finops-{getattr(args, 'service', 'service')}", True
+        else:
+            service, console = "finops-cli", False
+        setup_telemetry(cfg, service, default_console=console)
+    except Exception:
+        pass
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     cmd = args.cmd or "preflight"
+
+    # OpenTelemetry: long-running servers emit to console when no collector endpoint is set; a
+    # one-shot CLI command stays quiet (no exporter) unless an endpoint is configured.
+    _init_telemetry(args, cmd)
 
     if cmd == "preflight":
         from finops_core.preflight import run_preflight

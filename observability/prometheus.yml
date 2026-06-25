@@ -1,0 +1,11 @@
+# Prometheus scrapes the FinOps metrics the OTEL Collector re-exports on :8889.
+# UI at http://localhost:9090. Look for: finops_aws_api_calls_total, finops_ce_cost_usd_total,
+# finops_llm_tokens_total, finops_llm_cost_usd_total, plus Strands' gen_ai_* agent metrics.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]

@@ -32,6 +32,14 @@ from finops_core.modes import (  # noqa: E402
 
 st.set_page_config(page_title="AWS FinOps Agent", page_icon="💰", layout="wide")
 
+# OpenTelemetry bootstrap (idempotent across Streamlit reruns; best-effort). Covers both the
+# FinOps and DevOps dashboard pages since they share this process.
+try:
+    from finops_core.telemetry import setup_telemetry  # noqa: E402
+    setup_telemetry(Config.load(), "finops-dashboard", default_console=True)
+except Exception:
+    pass
+
 
 def mode_cfg() -> Config:
     """Config with the action mode + skills toggle chosen in the sidebar (runtime override)."""
@@ -103,6 +111,18 @@ with st.sidebar:
         help="Progressive-disclosure playbooks (drill-down, savings, anomaly triage) for the chat agent.",
     )
     st.session_state["skills"] = skills_on
+    st.session_state["memory"] = st.checkbox(
+        "Conversation memory", value=st.session_state.get("memory", cfg.memory.enabled),
+        key="memory_select",
+        help="Remember durable facts (goals, account/resource details, decisions) and recall them "
+             "in future questions. Stored locally; account IDs redacted.",
+    )
+    st.session_state["summarize"] = st.checkbox(
+        "Summarize long chats", value=st.session_state.get("summarize", cfg.conversation.summarize),
+        key="summarize_select",
+        help="Automatically summarize older turns so the chat context stays bounded (avoids "
+             "context rot / runaway cost on long conversations).",
+    )
     if mode == "guarded_write":
         st.warning("guarded_write can modify your AWS account (allowlisted + confirmed).")
     elif mode == "artifacts":
@@ -316,11 +336,13 @@ st.caption("Questions are routed deterministically (cost / optimize / anomaly) t
 
 
 @st.cache_resource(show_spinner=False)
-def get_router(skills_enabled: bool = False):
-    # skills_enabled is part of the cache key so toggling it rebuilds the specialists.
+def get_router(skills_enabled: bool = False, memory_enabled: bool = True, summarize: bool = True):
+    # The toggles are part of the cache key so flipping them rebuilds the specialists.
     from finops_core.router import IntentRouter
     c = Config.load()
     c.skills_enabled = skills_enabled
+    c.memory.enabled = memory_enabled          # persistent recall of "important aspects"
+    c.conversation.summarize = summarize        # summarize old turns (context-rot fix)
     return IntentRouter(c)
 
 
@@ -334,7 +356,11 @@ if q := st.chat_input("e.g. why did EC2 jump last week? / find savings / am I ov
     st.chat_message("user").write(q)
     try:
         with st.spinner("Thinking…"):
-            intent, answer = get_router(st.session_state.get("skills", False)).answer(q)
+            intent, answer = get_router(
+                st.session_state.get("skills", False),
+                st.session_state.get("memory", True),
+                st.session_state.get("summarize", True),
+            ).answer(q)
         text = f"*(routed to the **{intent}** specialist)*\n\n{answer}"
     except Exception as e:
         text = f"(agent unavailable: {e})"

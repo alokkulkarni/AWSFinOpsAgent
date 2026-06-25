@@ -14,7 +14,7 @@ COPY pyproject.toml README.md ./
 COPY finops_core ./finops_core
 COPY devops_core ./devops_core
 COPY apps ./apps
-RUN pip install --no-cache-dir -e ".[agent,api,dashboard]"
+RUN pip install --no-cache-dir -e ".[agent,api,dashboard,otel]"
 
 # Config is also bind-mounted read-only at runtime via compose.
 COPY config ./config
